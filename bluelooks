@@ -2143,17 +2143,17 @@ end)
 -- 🧤 Tab 3: Autonomous Goalkeeper & Defense
 local DefTab = CreateTab("Defense & GK", "🧤", "Auto GK & Steals")
 DefTab:AddSection("Autonomous Goalkeeper Suite")
-DefTab:AddToggle("Auto GK (Godmode Goalkeeper)", Config.AutoGK, function(v)
+DefTab:AddToggle("Auto GK (Pro Human Goalkeeper)", Config.AutoGK, function(v)
     Config.AutoGK = v
-    Notify("Auto GK", v and "Enabled: Full Autonomous GK Active!" or "Disabled", 1.5, "🧤")
+    Notify("Auto GK", v and "Enabled: Pro Human GK Active!" or "Disabled", 1.5, "🧤")
 end)
 
-DefTab:AddToggle("God GK Auto-Deflector (100% Saves)", Config.GodGK, function(v)
+DefTab:AddToggle("God GK Pro Diving Interception", Config.GodGK, function(v)
     Config.GodGK = v
-    Notify("God GK", v and "Enabled: Intercepts & neutralizes incoming shots." or "Disabled", 1.5, "🛡️")
+    Notify("God GK", v and "Enabled: Human-legit diving saves active." or "Disabled", 1.5, "🛡️")
 end)
 
-DefTab:AddToggle("Instant Counter Clearance", Config.GKCounterAttack, function(v)
+DefTab:AddToggle("Auto GK: Counter Clearance", Config.GKCounterAttack, function(v)
     Config.GKCounterAttack = v
 end)
 
@@ -2729,7 +2729,7 @@ local function IsPlayerGK()
     return false
 end
 
--- Autonomous Goalkeeper (Auto GK Supreme Engine)
+-- Autonomous Goalkeeper (Human-Legit Pro GK Engine)
 local lastGKDiveTick = 0
 local lastGKCounterTick = 0
 
@@ -2746,11 +2746,13 @@ RunService.Heartbeat:Connect(function()
         local hasBall = myChar:GetAttribute("HasBall") == true
         local ball = GetBall()
 
-        -- Instant Counter-Attack Dropkick Clearance
-        if Config.GKCounterAttack and hasBall and (tick() - lastGKCounterTick) > 1.2 then
+        -- Natural Counter-Attack: Wait for keeper to finish save stance before passing
+        if Config.GKCounterAttack and hasBall and (tick() - lastGKCounterTick) > 1.8 then
             lastGKCounterTick = tick()
-            task.delay(0.2, function()
-                ExecuteAutoPass()
+            task.delay(0.65, function()
+                if myChar and myChar:GetAttribute("HasBall") == true then
+                    ExecuteAutoPass()
+                end
             end)
             return
         end
@@ -2764,33 +2766,36 @@ RunService.Heartbeat:Connect(function()
         local distToBall = (ballPos - myHrp.Position).Magnitude
         local distToGoal = (myHrp.Position - goalPos).Magnitude
         
-        -- Exact Goal Mouth Coordinates (Front of Goal Line: X = -223.5 for Home, X = +223.5 for Away)
+        -- Exact Goal Mouth Line Coordinates (Home: X = -227.7, Away: X = +227.7)
         local isHome = goalPos.X < 0
         local goalLineX = isHome and -227.7 or 227.7
-        local standingX = isHome and -223.5 or 223.5
+        local standingX = isHome and -224.2 or 224.2
         
-        -- 1. Predictive Trajectory Interception for Fast Shots
+        -- 1. Realistic Stance: Face the ball naturally along the goal arc
+        if distToGoal < 48 and not myChar:GetAttribute("Ragdoll") then
+            local lookTarget = Vector3.new(ballPos.X, myHrp.Position.Y, ballPos.Z)
+            if (lookTarget - myHrp.Position).Magnitude > 2 then
+                myHrp.CFrame = CFrame.lookAt(myHrp.Position, lookTarget)
+            end
+        end
+
+        -- 2. Predictive Trajectory Interception for Fast Shots
         local isFastShotIncoming = false
         local predictedHitPos = nil
         
-        if math.abs(ballVel.X) > 12 then
+        if math.abs(ballVel.X) > 10 then
             local timeToGoal = (goalLineX - ballPos.X) / ballVel.X
-            if timeToGoal > 0 and timeToGoal <= 1.25 then
+            if timeToGoal > 0 and timeToGoal <= 1.35 then
                 local predZ = ballPos.Z + (ballVel.Z * timeToGoal)
                 local predY = ballPos.Y + (ballVel.Y * timeToGoal)
-                if math.abs(predZ) <= 16.5 and predY >= 0 and predY <= 15 then
+                if math.abs(predZ) <= 15.5 and predY >= 0 and predY <= 12.5 then
                     isFastShotIncoming = true
-                    predictedHitPos = Vector3.new(goalLineX, math.clamp(predY, 2, 8), predZ)
+                    predictedHitPos = Vector3.new(goalLineX, math.clamp(predY, 2.0, 7.5), math.clamp(predZ, -13.0, 13.0))
                 end
             end
         end
         
-        -- God GK Auto-Deflector Position Lock
-        if Config.GodGK and isFastShotIncoming and predictedHitPos then
-            myHrp.CFrame = CFrame.new(predictedHitPos)
-        end
-
-        -- 2. General incoming shot detection
+        -- 3. General incoming shot detection
         local isBallIncoming = isFastShotIncoming
         if not isBallIncoming and ballSpeed > 8 then
             local toGoal = (goalPos - ballPos).Unit
@@ -2813,35 +2818,64 @@ RunService.Heartbeat:Connect(function()
             end
         end
         
-        -- 3. Sweeper Goal Positioning (Stands 4.2 studs in front of goal line, out of the net)
-        if Config.AutoGKPositioning and distToGoal < 50 and not myChar:GetAttribute("Ragdoll") then
-            local goalZClamp = math.clamp(ballPos.Z * 0.38, -12.5, 12.5)
+        -- 4. Sweeper Goal Positioning (Human-like shuffling footwork along the net line)
+        if Config.AutoGKPositioning and distToGoal < 48 and not isFastShotIncoming and not myChar:GetAttribute("Ragdoll") then
+            local goalZClamp = math.clamp(ballPos.Z * 0.42, -11.5, 11.5)
             local idealPos = Vector3.new(standingX, myHrp.Position.Y, goalZClamp)
             
-            if (idealPos - myHrp.Position).Magnitude > 2.2 and not (ballSpeed > 50 and distToBall < 30) then
+            if (idealPos - myHrp.Position).Magnitude > 1.8 and not (ballSpeed > 50 and distToBall < 30) then
                 hum:MoveTo(idealPos)
             end
         end
         
-        -- 4. Instant Reactive Dive & Save (0ms Latency on Heartbeat)
+        -- 5. Pro Diving Save (Natural Physical Impulse + Official GKDive Animation, NEVER Teleport!)
         local now = tick()
         if (Config.AutoGKDive or Config.GodGK) and (isFastShotIncoming or (distToBall <= Config.AutoGKDistance and (isBallIncoming or opponentThreat or distToBall <= 22))) then
-            if (now - lastGKDiveTick) >= 0.38 then
+            if (now - lastGKDiveTick) >= 0.45 then
                 local targetPoint = predictedHitPos or ballPos
                 local relVec = myHrp.CFrame:PointToObjectSpace(targetPoint)
                 local diveDir = "Forward"
                 
-                if relVec.X < -1.8 then
+                if relVec.X < -1.5 then
                     diveDir = "Left"
-                elseif relVec.X > 1.8 then
+                elseif relVec.X > 1.5 then
                     diveDir = "Right"
                 else
                     diveDir = "Forward"
                 end
                 
+                lastGKDiveTick = now
+
+                -- Official Server GK Dive Remote
                 if Events and Events:FindFirstChild("GKDive") then
                     Events.GKDive:FireServer(diveDir)
-                    lastGKDiveTick = now
+                end
+                
+                -- Natural Pro Physical Diving Impulse
+                local saveTarget = predictedHitPos or Vector3.new(standingX, math.clamp(ballPos.Y, 2.5, 7.0), math.clamp(ballPos.Z, -13.0, 13.0))
+                local diveDelta = (saveTarget - myHrp.Position)
+                local horizontalDelta = Vector3.new(diveDelta.X, 0, diveDelta.Z)
+                local diveDist = horizontalDelta.Magnitude
+                
+                if diveDist > 1.5 then
+                    local diveSpeed = math.clamp(diveDist * 4.5, 32, 58)
+                    local isHighShot = (targetPoint.Y >= 4.5)
+                    
+                    if isHighShot then
+                        hum.Jump = true
+                    end
+                    
+                    if myHrp:FindFirstChild("GKDiveBV") then myHrp.GKDiveBV:Destroy() end
+                    local diveBV = Instance.new("BodyVelocity")
+                    diveBV.Name = "GKDiveBV"
+                    diveBV.MaxForce = Vector3.new(1e6, isHighShot and 1e6 or 0, 1e6)
+                    local yLift = isHighShot and math.clamp((targetPoint.Y - myHrp.Position.Y) * 5, 8, 22) or 0
+                    diveBV.Velocity = (horizontalDelta.Unit * diveSpeed) + Vector3.new(0, yLift, 0)
+                    diveBV.Parent = myHrp
+                    
+                    task.delay(0.32, function()
+                        if diveBV and diveBV.Parent then diveBV:Destroy() end
+                    end)
                 end
                 
                 for _, plr in ipairs(Players:GetPlayers()) do
@@ -2851,12 +2885,6 @@ RunService.Heartbeat:Connect(function()
                         end
                     end
                 end
-            end
-        end
-        
-        if distToBall <= 14 and not hasBall then
-            if Events and Events:FindFirstChild("SlideBegan") then
-                Events.SlideBegan:FireServer()
             end
         end
     end)
