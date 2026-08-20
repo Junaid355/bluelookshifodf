@@ -160,8 +160,82 @@ local Config = {
     -- 📱 Mobile & Performance
     MobileMode = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled,
     LowLagMode = false,
-    Notifications = true
+    Notifications = true,
+
+    -- 💾 Config Management
+    AutoSave = true
 }
+
+-- ==============================================================================
+--                               CONFIG MANAGER
+-- ==============================================================================
+local ConfigFolder = "LunarHub"
+local ConfigFileName = "LunarHub/BlueLockConfig.json"
+
+local function SerializeConfig()
+    local serializable = {}
+    for k, v in pairs(Config) do
+        if typeof(v) == "EnumItem" then
+            serializable[k] = "Enum.KeyCode." .. v.Name
+        else
+            serializable[k] = v
+        end
+    end
+    return serializable
+end
+
+local function DeserializeConfig(tbl)
+    for k, v in pairs(tbl) do
+        if type(v) == "string" and string.sub(v, 1, 13) == "Enum.KeyCode." then
+            local keyName = string.sub(v, 14)
+            if Enum.KeyCode[keyName] then
+                Config[k] = Enum.KeyCode[keyName]
+            end
+        else
+            Config[k] = v
+        end
+    end
+end
+
+local function SaveConfig(silent)
+    pcall(function()
+        if writefile then
+            if makefolder and not isfolder(ConfigFolder) then
+                makefolder(ConfigFolder)
+            end
+            local encoded = HttpService:JSONEncode(SerializeConfig())
+            writefile(ConfigFileName, encoded)
+            if not silent then
+                Notify("Config Manager", "Settings saved to " .. ConfigFileName .. "!", 1.5, "💾")
+            end
+        else
+            if not silent then
+                Notify("Config Manager", "File system unsupported on this executor.", 2, "⚠️")
+            end
+        end
+    end)
+end
+
+local function LoadConfig(silent)
+    local loaded = false
+    pcall(function()
+        if readfile and isfile and isfile(ConfigFileName) then
+            local raw = readfile(ConfigFileName)
+            local decoded = HttpService:JSONDecode(raw)
+            if decoded and type(decoded) == "table" then
+                DeserializeConfig(decoded)
+                loaded = true
+                if not silent then
+                    Notify("Config Manager", "Settings loaded from file!", 1.5, "📂")
+                end
+            end
+        end
+    end)
+    return loaded
+end
+
+-- Auto-load saved config on startup
+LoadConfig(true)
 
 -- Audio Feedback FX
 local function PlaySound(soundId, pitch)
@@ -1713,6 +1787,7 @@ local function CreateTab(name, icon, subtitle)
                 Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
             }):Play()
             pcall(callback, state)
+            if Config.AutoSave then task.spawn(function() SaveConfig(true) end) end
         end)
     end
 
@@ -1794,6 +1869,7 @@ local function CreateTab(name, icon, subtitle)
             Fill.Size = UDim2.new(pos, 0, 1, 0)
             SVal.Text = tostring(value) .. suffix
             pcall(callback, value)
+            if Config.AutoSave then task.spawn(function() SaveConfig(true) end) end
         end
 
         SliderBtn.InputBegan:Connect(function(input)
@@ -1867,6 +1943,7 @@ local function CreateTab(name, icon, subtitle)
             DropBtn.Text = tostring(selected) .. " ▾"
             PlaySound(nil, 1.1)
             pcall(callback, selected)
+            if Config.AutoSave then task.spawn(function() SaveConfig(true) end) end
         end)
     end
 
@@ -1984,6 +2061,7 @@ local function CreateTab(name, icon, subtitle)
                 KeyBadge.TextColor3 = Color3.fromRGB(0, 230, 255)
                 recording = false
                 pcall(callback, currentKey)
+                if Config.AutoSave then task.spawn(function() SaveConfig(true) end) end
             elseif not processed and input.KeyCode == currentKey and not recording then
                 pcall(callback, currentKey)
             end
@@ -2572,6 +2650,20 @@ end)
 
 ServerTab:AddToggle("Auto-Leave on Staff Join", Config.AutoLeaveOnStaff, function(v)
     Config.AutoLeaveOnStaff = v
+end)
+
+ServerTab:AddSection("💾 Configuration Profile")
+ServerTab:AddToggle("Auto-Save Changes (Real-Time)", Config.AutoSave, function(v)
+    Config.AutoSave = v
+    Notify("Auto-Save", v and "Enabled: Changes persist automatically." or "Disabled", 1.5, "💾")
+end)
+
+ServerTab:AddButton("Save Current Settings", "Save Config", function()
+    SaveConfig(false)
+end)
+
+ServerTab:AddButton("Load Saved Settings", "Load Config", function()
+    LoadConfig(false)
 end)
 
 -- ==============================================================================
