@@ -6,31 +6,43 @@
     ╚══════════════════════════════════════════════════════════════════════════════╝
 ]]
 
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local CoreGui = game:GetService("CoreGui")
-local Workspace = game:GetService("Workspace")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local Stats = game:GetService("Stats")
+local cloneref = cloneref or function(o) return o end
+local gethui = gethui or function() return nil end
+
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local RunService = cloneref(game:GetService("RunService"))
+local Players = cloneref(game:GetService("Players"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local TweenService = cloneref(game:GetService("TweenService"))
+local CoreGui = cloneref(game:GetService("CoreGui"))
+local Workspace = cloneref(game:GetService("Workspace"))
+local TeleportService = cloneref(game:GetService("TeleportService"))
+local HttpService = cloneref(game:GetService("HttpService"))
+local Stats = cloneref(game:GetService("Stats"))
 local Camera = Workspace.CurrentCamera
 
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
+-- Safe stealth UI Parent container
+local function GetSafeUIParent()
+    if gethui then
+        local success, res = pcall(gethui)
+        if success and res then return res end
+    end
+    local success, res = pcall(function() return CoreGui end)
+    if success and res then return res end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local UI_PARENT = GetSafeUIParent()
+
 -- Clean up any prior instances
 pcall(function()
-    if CoreGui:FindFirstChild("BlueLockMetavisionHub") then CoreGui.BlueLockMetavisionHub:Destroy() end
-    if LocalPlayer.PlayerGui:FindFirstChild("BlueLockMetavisionHub") then LocalPlayer.PlayerGui.BlueLockMetavisionHub:Destroy() end
-    if CoreGui:FindFirstChild("BlueLockEgoHub") then CoreGui.BlueLockEgoHub:Destroy() end
-    if LocalPlayer.PlayerGui:FindFirstChild("BlueLockEgoHub") then LocalPlayer.PlayerGui.BlueLockEgoHub:Destroy() end
-    if gethui and gethui():FindFirstChild("BlueLockMetavisionHub") then gethui().BlueLockMetavisionHub:Destroy() end
+    if CoreGui:FindFirstChild("LunarHub") then CoreGui.LunarHub:Destroy() end
+    if LocalPlayer.PlayerGui:FindFirstChild("LunarHub") then LocalPlayer.PlayerGui.LunarHub:Destroy() end
+    if gethui and gethui() and gethui():FindFirstChild("LunarHub") then gethui().LunarHub:Destroy() end
 end)
-
-local UI_PARENT = LocalPlayer:WaitForChild("PlayerGui")
 
 -- ==============================================================================
 --                               CONFIGURATION
@@ -495,6 +507,11 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.DisplayOrder = 999999
 ScreenGui.IgnoreGuiInset = true
+
+if syn and syn.protect_gui then
+    pcall(syn.protect_gui, ScreenGui)
+end
+
 ScreenGui.Parent = UI_PARENT
 
 local ToastContainer = Instance.new("Frame")
@@ -2993,18 +3010,53 @@ task.spawn(function()
     end
 end)
 
--- Staff Detector
+-- Staff & Moderator Detector
+local StaffGroups = {
+    33959146, -- Blue Lock Rivals Group ID
+    16843477, -- Dev Group
+    32607831, -- Community Staff
+}
+
 local function CheckStaff(player)
+    if not player or not player:IsA("Player") then return false end
     local uid = player.UserId
-    for _, adminId in ipairs(Admins) do if uid == adminId then return true end end
-    for _, bAdminId in ipairs(BanAdmins) do if uid == bAdminId then return true end end
+    if Admins then
+        for _, adminId in ipairs(Admins) do if uid == adminId then return true end end
+    end
+    if BanAdmins then
+        for _, bAdminId in ipairs(BanAdmins) do if uid == bAdminId then return true end end
+    end
+    for _, gid in ipairs(StaffGroups) do
+        local success, rank = pcall(function() return player:GetRankInGroup(gid) end)
+        if success and rank and rank >= 100 then
+            return true
+        end
+    end
     return false
 end
+
+-- Scan currently present players on startup
+task.spawn(function()
+    task.wait(1)
+    if Config.StaffDetector then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and CheckStaff(plr) then
+                Notify("⚠️ STAFF IN SERVER", "Staff present: " .. plr.Name, 6, "🚨")
+                if Config.AutoLeaveOnStaff then
+                    LocalPlayer:Kick("Staff member present in server.")
+                end
+                break
+            end
+        end
+    end
+end)
 
 Players.PlayerAdded:Connect(function(player)
     if Config.StaffDetector and CheckStaff(player) then
         Notify("⚠️ STAFF DETECTED", "Admin joined: " .. player.Name, 8, "🚨")
-        if Config.AutoLeaveOnStaff then LocalPlayer:Kick("Staff member joined the server.") end
+        if Config.AutoLeaveOnStaff then
+            LocalPlayer:Kick("Staff member joined the server.")
+        end
     end
 end)
 
