@@ -47,6 +47,11 @@ local Config = {
     BallisticArc = true,
     AutoCurve = true,
     CurveIntensity = 25,
+    Knuckleball = true,
+    KnuckleIntensity = 15,
+    AutoPass = true,
+    AutoPassKey = Enum.KeyCode.Z,
+    ReboundMagnet = true,
     InstantGoalKey = Enum.KeyCode.G,
     TrajectoryESP = true,
 
@@ -54,9 +59,10 @@ local Config = {
     BallControl = false,
     BallGlue = false,
     BallGlueDistance = 3.2,
-    AntiStealShield = false,
+    AntiStealShield = true,
+    SkillChaining = true,
     BallTelekinesis = false,
-    BallTelekinesisKey = Enum.KeyCode.Z,
+    BallTelekinesisKey = Enum.KeyCode.V,
     BringBallKey = Enum.KeyCode.B,
     FreezeBallKey = Enum.KeyCode.P,
     BallOrbit = false,
@@ -71,6 +77,8 @@ local Config = {
     -- 🧤 Autonomous Goalkeeper (Auto GK)
     AutoGK = false,
     AutoGKOnlyWhenGKRole = true,
+    GodGK = true,
+    GKCounterAttack = true,
     AutoGKDive = false,
     AutoGKDistance = 35,
     AutoGKPositioning = false,
@@ -107,7 +115,7 @@ local Config = {
 
     -- 🔥 Combat & Flow
     AutoAwakening = false,
-    AwakeningKey = Enum.KeyCode.V,
+    AwakeningKey = Enum.KeyCode.U,
     AutoMash = true,
 
     -- 👁️ Metavision Visuals
@@ -115,6 +123,7 @@ local Config = {
     BallTracer = true,
     PlayerESP = true,
     PlayerBox = true,
+    PlayerInfoESP = true,
     PlayerTracers = false,
     GoalESP = true,
     AntiCameraShake = true,
@@ -129,7 +138,8 @@ local Config = {
 
     -- 📱 Mobile & Performance
     MobileMode = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled,
-    LowLagMode = false
+    LowLagMode = false,
+    Notifications = true
 }
 
 -- Audio Feedback FX
@@ -435,6 +445,14 @@ local function BoostBallRocket(targetPos, speed)
                         local curveOffset = math.sin((tick() - startTime) * 10) * 0.15
                         dir = Vector3.new(dir.X, dir.Y, dir.Z + curveOffset).Unit
                     end
+
+                    -- Chaos Knuckleball (Erratic Multi-Frequency Aerodynamic Spin)
+                    if Config.Knuckleball then
+                        local elapsed = tick() - startTime
+                        local kZ = math.sin(elapsed * 16) * (Config.KnuckleIntensity * 0.008)
+                        local kY = math.cos(elapsed * 13) * (Config.KnuckleIntensity * 0.005)
+                        dir = Vector3.new(dir.X, dir.Y + kY, dir.Z + kZ).Unit
+                    end
                     
                     ball.AssemblyLinearVelocity = dir * targetSpeed
                     
@@ -695,6 +713,95 @@ local function ExecuteDashBurst()
     end)
 end
 
+local function GetBestTeammatePassTarget()
+    local myChar = LocalPlayer.Character
+    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return nil end
+    
+    local enemyGoal = GetEnemyGoal()
+    local bestTeammate = nil
+    local bestScore = -9999
+    
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and (plr.Team == LocalPlayer.Team or (not plr.Team and not LocalPlayer.Team)) and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local tHrp = plr.Character.HumanoidRootPart
+            local distToMe = (tHrp.Position - myHrp.Position).Magnitude
+            if distToMe >= 10 and distToMe <= 140 then
+                local distToGoal = (tHrp.Position - enemyGoal).Magnitude
+                local forwardScore = 250 - distToGoal
+                
+                -- Check if teammate is marked by an enemy
+                local isMarked = false
+                for _, enemy in ipairs(Players:GetPlayers()) do
+                    if enemy ~= plr and enemy.Team ~= plr.Team and enemy.Character and enemy.Character:FindFirstChild("HumanoidRootPart") then
+                        if (enemy.Character.HumanoidRootPart.Position - tHrp.Position).Magnitude < 12 then
+                            isMarked = true
+                            break
+                        end
+                    end
+                end
+                
+                local score = forwardScore - (isMarked and 70 or 0) - (distToMe * 0.25)
+                if score > bestScore then
+                    bestScore = score
+                    bestTeammate = plr.Character
+                end
+            end
+        end
+    end
+    
+    return bestTeammate
+end
+
+local function ExecuteAutoPass()
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local ball = GetBall()
+        if not hrp or not ball then return end
+        
+        local distToBall = (ball.Position - hrp.Position).Magnitude
+        local hasBall = char:GetAttribute("HasBall") == true or distToBall <= 7.5
+        if not hasBall then
+            Notify("Notice", "You need possession of the ball to pass!", 1.2, "⚠️")
+            return
+        end
+        
+        local targetTeammate = GetBestTeammatePassTarget()
+        if targetTeammate and targetTeammate:FindFirstChild("HumanoidRootPart") then
+            local tHrp = targetTeammate.HumanoidRootPart
+            local hum = targetTeammate:FindFirstChild("Humanoid")
+            local leadPos = tHrp.Position + (hum and (hum.MoveDirection * 4.5) or Vector3.zero) + Vector3.new(0, 0.4, 0)
+            local passDir = (leadPos - hrp.Position).Unit
+            
+            lastShotTick = tick()
+            if Events and Events:FindFirstChild("ShootBall") then
+                Events.ShootBall:FireServer(passDir, 75)
+            end
+            
+            -- Smooth, unblockable pass velocity to teammate boots
+            task.spawn(function()
+                local startTime = tick()
+                while (tick() - startTime) < 1.4 do
+                    pcall(function()
+                        local b = GetBall()
+                        if b and b:IsA("BasePart") then
+                            b.CanCollide = false
+                            local d = (leadPos - b.Position).Unit
+                            b.AssemblyLinearVelocity = d * 95
+                        end
+                    end)
+                    task.wait(0.015)
+                end
+            end)
+            
+            Notify("🎯 Smart Pass", "Pass delivered to " .. targetTeammate.Name .. "!", 1.5, "🎯")
+        else
+            Notify("Notice", "No open teammates in passing range!", 1.2, "⚠️")
+        end
+    end)
+end
+
 -- Dynamic Viewport Sizing for Mobile & PC
 local function GetResponsiveFrameSize()
     local vp = Camera.ViewportSize
@@ -946,8 +1053,8 @@ CloseBtnCorner.Parent = CloseBtn
 -- ==============================================================================
 local MobilePadFrame = Instance.new("Frame")
 MobilePadFrame.Name = "MobilePadFrame"
-MobilePadFrame.Size = UDim2.new(0, 62, 0, 310)
-MobilePadFrame.Position = UDim2.new(1, -74, 0.5, -155)
+MobilePadFrame.Size = UDim2.new(0, 62, 0, 345)
+MobilePadFrame.Position = UDim2.new(1, -74, 0.5, -172)
 MobilePadFrame.BackgroundColor3 = Color3.fromRGB(12, 16, 25)
 MobilePadFrame.BackgroundTransparency = 0.16
 MobilePadFrame.BorderSizePixel = 0
@@ -1016,7 +1123,7 @@ end)
 
 local function CreateMobileActionBtn(icon, label, color, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 52, 0, 30)
+    btn.Size = UDim2.new(0, 52, 0, 28)
     btn.BackgroundColor3 = Color3.fromRGB(19, 26, 38)
     btn.BorderSizePixel = 0
     btn.Text = ""
@@ -1035,17 +1142,17 @@ local function CreateMobileActionBtn(icon, label, color, callback)
     bStroke.Parent = btn
 
     local iconLbl = Instance.new("TextLabel")
-    iconLbl.Size = UDim2.new(1, 0, 0, 16)
+    iconLbl.Size = UDim2.new(1, 0, 0, 15)
     iconLbl.Position = UDim2.new(0, 0, 0, 1)
     iconLbl.BackgroundTransparency = 1
     iconLbl.Text = icon
-    iconLbl.TextSize = 13
+    iconLbl.TextSize = 12
     iconLbl.ZIndex = 66
     iconLbl.Parent = btn
 
     local nameLbl = Instance.new("TextLabel")
-    nameLbl.Size = UDim2.new(1, 0, 0, 11)
-    nameLbl.Position = UDim2.new(0, 0, 0, 17)
+    nameLbl.Size = UDim2.new(1, 0, 0, 10)
+    nameLbl.Position = UDim2.new(0, 0, 0, 16)
     nameLbl.BackgroundTransparency = 1
     nameLbl.Text = label
     nameLbl.TextColor3 = color or Color3.fromRGB(210, 230, 255)
@@ -1068,6 +1175,10 @@ end
 -- Create Mobile Quick Actions
 CreateMobileActionBtn("⚽", "GOAL", Color3.fromRGB(0, 255, 170), function()
     FireSuperShot()
+end)
+
+CreateMobileActionBtn("🎯", "PASS", Color3.fromRGB(0, 255, 220), function()
+    ExecuteAutoPass()
 end)
 
 CreateMobileActionBtn("⚡", "TP BALL", Color3.fromRGB(0, 220, 255), function()
@@ -1859,13 +1970,35 @@ AimTab:AddKeybind("Instant Rocket Goal Key", Config.InstantGoalKey, function()
     FireSuperShot()
 end)
 
+AimTab:AddToggle("Smart Teammate Auto-Pass", Config.AutoPass, function(v)
+    Config.AutoPass = v
+    Notify("Auto-Pass", v and "Enabled: Smart assist to open teammates." or "Disabled", 1.5, "🎯")
+end)
+
+AimTab:AddKeybind("Auto-Pass Keybind", Config.AutoPassKey, function()
+    ExecuteAutoPass()
+end)
+
+AimTab:AddButton("Execute Smart Pass", "Pass Ball", function()
+    ExecuteAutoPass()
+end)
+
+AimTab:AddToggle("Chaos Knuckleball Spin", Config.Knuckleball, function(v)
+    Config.Knuckleball = v
+    Notify("Knuckleball", v and "Enabled: Unpredictable erratic trajectory active." or "Disabled", 1.5, "🌪️")
+end)
+
+AimTab:AddToggle("Instant Rebound Snatcher", Config.ReboundMagnet, function(v)
+    Config.ReboundMagnet = v
+end)
+
 AimTab:AddToggle("Curve Shot Optimizer", Config.AutoCurve, function(v)
     Config.AutoCurve = v
 end)
 
 AimTab:AddToggle("Auto Aerial Volley & Header", Config.AutoHeaderVolley, function(v)
     Config.AutoHeaderVolley = v
-    Notify("Aerial Volley", v and "Enabled: Auto header strikes on airborne balls." or "Disabled", 2, "👟")
+    Notify("Aerial Volley", v and "Enabled: Auto header strikes on airborne balls." or "Disabled", 1.5, "👟")
 end)
 
 AimTab:AddToggle("Shot Trajectory Laser Line", Config.TrajectoryESP, function(v)
@@ -1877,12 +2010,17 @@ local BallTab = CreateTab("Ball Control", "🧲", "Retention & Steer")
 BallTab:AddSection("Possession & Dribble")
 BallTab:AddToggle("Master Ball Retention", Config.BallControl, function(v)
     Config.BallControl = v
-    Notify("Ball Control", v and "Enabled: Retention & feet lock active." or "Disabled", 2, "🧲")
+    Notify("Ball Control", v and "Enabled: Retention & feet lock active." or "Disabled", 1.5, "🧲")
+end)
+
+BallTab:AddToggle("0ms Auto-Skill Chaining", Config.SkillChaining, function(v)
+    Config.SkillChaining = v
+    Notify("Skill Chaining", v and "Enabled: Auto combos on incoming tackles." or "Disabled", 1.5, "🪄")
 end)
 
 BallTab:AddToggle("Ball Magnet Aura (Vacuum Pull)", Config.BallMagnet, function(v)
     Config.BallMagnet = v
-    Notify("Ball Magnet", v and "Enabled: Magnetically pulls loose balls." or "Disabled", 2, "🧲")
+    Notify("Ball Magnet", v and "Enabled: Magnetically pulls loose balls." or "Disabled", 1.5, "🧲")
 end)
 
 BallTab:AddSlider("Magnet Pull Distance", 10, 45, Config.BallMagnetDistance, " studs", function(v)
@@ -1893,9 +2031,9 @@ BallTab:AddToggle("Ball Glue (Zero-Bounce Feet Lock)", Config.BallGlue, function
     Config.BallGlue = v
 end)
 
-BallTab:AddToggle("Anti-Steal Body Shield", Config.AntiStealShield, function(v)
+BallTab:AddToggle("360° Anti-Steal Body Shield", Config.AntiStealShield, function(v)
     Config.AntiStealShield = v
-    Notify("Anti-Steal", v and "Enabled: Auto body shielding active." or "Disabled", 2, "🛡️")
+    Notify("Anti-Steal", v and "Enabled: Auto body shielding active." or "Disabled", 1.5, "🛡️")
 end)
 
 BallTab:AddToggle("Auto Loose Ball Claim", Config.AutoClaimBall, function(v)
@@ -2001,7 +2139,16 @@ local DefTab = CreateTab("Defense & GK", "🧤", "Auto GK & Steals")
 DefTab:AddSection("Autonomous Goalkeeper Suite")
 DefTab:AddToggle("Auto GK (Godmode Goalkeeper)", Config.AutoGK, function(v)
     Config.AutoGK = v
-    Notify("Auto GK", v and "Enabled: Full Autonomous GK Active!" or "Disabled", 2, "🧤")
+    Notify("Auto GK", v and "Enabled: Full Autonomous GK Active!" or "Disabled", 1.5, "🧤")
+end)
+
+DefTab:AddToggle("God GK Auto-Deflector (100% Saves)", Config.GodGK, function(v)
+    Config.GodGK = v
+    Notify("God GK", v and "Enabled: Intercepts & neutralizes incoming shots." or "Disabled", 1.5, "🛡️")
+end)
+
+DefTab:AddToggle("Instant Counter Clearance", Config.GKCounterAttack, function(v)
+    Config.GKCounterAttack = v
 end)
 
 DefTab:AddToggle("Auto GK: Only When GK Role", Config.AutoGKOnlyWhenGKRole, function(v)
@@ -2216,6 +2363,10 @@ VisualsTab:AddToggle("Player 2D Box ESP", Config.PlayerBox, function(v)
     Config.PlayerBox = v
 end)
 
+VisualsTab:AddToggle("Player Info & Role HUD", Config.PlayerInfoESP, function(v)
+    Config.PlayerInfoESP = v
+end)
+
 VisualsTab:AddToggle("Goal Box 3D ESP", Config.GoalESP, function(v)
     Config.GoalESP = v
 end)
@@ -2352,6 +2503,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
     if processed or UserInputService:GetFocusedTextBox() then return end
     if input.KeyCode == Config.InstantGoalKey then
         FireSuperShot()
+    elseif input.KeyCode == Config.AutoPassKey then
+        ExecuteAutoPass()
     elseif input.KeyCode == Config.DashBurstKey then
         ExecuteDashBurst()
     elseif input.KeyCode == Config.TPBallKey then
@@ -2505,8 +2658,8 @@ RunService.Heartbeat:Connect(function()
             end
         end
 
-        -- 2. Predictive Instant Auto Dribble (Evade Incoming Slides)
-        if Config.AutoDribble and hasBall and (now - lastDribbleTick) >= 0.55 then
+        -- 2. Predictive Instant Auto Dribble & Skill Chaining (Evade Incoming Slides)
+        if (Config.AutoDribble or Config.SkillChaining) and hasBall and (now - lastDribbleTick) >= 0.52 then
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                     local enemyChar = plr.Character
@@ -2515,6 +2668,9 @@ RunService.Heartbeat:Connect(function()
                     
                     if dist <= 14 and (enemyChar:GetAttribute("Sliding") == true or enemyChar:GetAttribute("Tackling") == true or (enemyHrp.AssemblyLinearVelocity.Magnitude > 28 and dist <= 10)) then
                         lastDribbleTick = now
+                        if Config.SkillChaining and Events and Events:FindFirstChild("RainbowFlick") then
+                            Events.RainbowFlick:FireServer(myHrp.CFrame.LookVector + Vector3.new(0, 1, 0))
+                        end
                         if Events and Events:FindFirstChild("Dribble") then
                             Events.Dribble:InvokeServer()
                         end
@@ -2531,6 +2687,17 @@ RunService.Heartbeat:Connect(function()
                 if (now - lastShotTick) > 0.75 then
                     hum.Jump = true
                     FireSuperShot()
+                end
+            end
+        end
+
+        -- 4. Instant Rebound Snatcher / Tap-In Magnet
+        if Config.ReboundMagnet and not hasBall and ball and ball.Parent == Workspace then
+            local dist = (ball.Position - myHrp.Position).Magnitude
+            if dist <= 28 and ball.Position.Y <= 6.0 and ball.AssemblyLinearVelocity.Magnitude < 45 then
+                ball.AssemblyLinearVelocity = (myHrp.Position - ball.Position).Unit * 80
+                if dist <= 8.5 and Events and Events:FindFirstChild("SlideBegan") then
+                    Events.SlideBegan:FireServer()
                 end
             end
         end
@@ -2558,10 +2725,11 @@ end
 
 -- Autonomous Goalkeeper (Auto GK Supreme Engine)
 local lastGKDiveTick = 0
+local lastGKCounterTick = 0
 
 RunService.Heartbeat:Connect(function()
     pcall(function()
-        if not Config.AutoGK then return end
+        if not Config.AutoGK and not Config.GodGK then return end
         if not IsPlayerGK() then return end
         
         local myChar = LocalPlayer.Character
@@ -2570,10 +2738,18 @@ RunService.Heartbeat:Connect(function()
         if not myHrp or not hum or hum.Health <= 0 then return end
         
         local hasBall = myChar:GetAttribute("HasBall") == true
-        if hasBall then return end
-        
         local ball = GetBall()
-        if not ball or not ball:IsA("BasePart") then return end
+
+        -- Instant Counter-Attack Dropkick Clearance
+        if Config.GKCounterAttack and hasBall and (tick() - lastGKCounterTick) > 1.2 then
+            lastGKCounterTick = tick()
+            task.delay(0.2, function()
+                ExecuteAutoPass()
+            end)
+            return
+        end
+
+        if hasBall or not ball or not ball:IsA("BasePart") then return end
         
         local goalPos = GetMyProtectedGoal()
         local ballPos = ball.Position
@@ -2603,6 +2779,11 @@ RunService.Heartbeat:Connect(function()
             end
         end
         
+        -- God GK Auto-Deflector Position Lock
+        if Config.GodGK and isFastShotIncoming and predictedHitPos then
+            myHrp.CFrame = CFrame.new(predictedHitPos)
+        end
+
         -- 2. General incoming shot detection
         local isBallIncoming = isFastShotIncoming
         if not isBallIncoming and ballSpeed > 8 then
@@ -2638,8 +2819,8 @@ RunService.Heartbeat:Connect(function()
         
         -- 4. Instant Reactive Dive & Save (0ms Latency on Heartbeat)
         local now = tick()
-        if Config.AutoGKDive and (isFastShotIncoming or (distToBall <= Config.AutoGKDistance and (isBallIncoming or opponentThreat or distToBall <= 22))) then
-            if (now - lastGKDiveTick) >= 0.42 then
+        if (Config.AutoGKDive or Config.GodGK) and (isFastShotIncoming or (distToBall <= Config.AutoGKDistance and (isBallIncoming or opponentThreat or distToBall <= 22))) then
+            if (now - lastGKDiveTick) >= 0.38 then
                 local targetPoint = predictedHitPos or ballPos
                 local relVec = myHrp.CFrame:PointToObjectSpace(targetPoint)
                 local diveDir = "Forward"
@@ -2856,16 +3037,22 @@ ballHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 ballHighlight.FillTransparency = 0.4
 ballHighlight.Parent = ESPFolder
 
--- Laser Trajectory Line
+-- Laser Trajectory Line (Columbina Parabolic Beam)
 local TrajectoryBeam = Instance.new("Beam")
 local BeamAtt0 = Instance.new("Attachment", Workspace.Terrain)
 local BeamAtt1 = Instance.new("Attachment", Workspace.Terrain)
 TrajectoryBeam.Attachment0 = BeamAtt0
 TrajectoryBeam.Attachment1 = BeamAtt1
-TrajectoryBeam.Color = ColorSequence.new(Color3.fromRGB(0, 230, 255))
+TrajectoryBeam.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 215, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 182, 205)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 240, 255))
+})
 TrajectoryBeam.Width0 = 0.4
-TrajectoryBeam.Width1 = 0.1
-TrajectoryBeam.Transparency = NumberSequence.new(0.25)
+TrajectoryBeam.Width1 = 0.15
+TrajectoryBeam.Transparency = NumberSequence.new(0.2)
+TrajectoryBeam.CurveSize0 = 3
+TrajectoryBeam.CurveSize1 = -3
 TrajectoryBeam.Enabled = false
 TrajectoryBeam.Parent = ESPFolder
 
@@ -2900,5 +3087,5 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
-print("🌙 [LUNAR HUB] Columbina Edition v6.2 Loaded Successfully!")
-Notify("🌙 LUNAR HUB v6.2", "Columbina Edition Loaded! Tap 🕊️ to toggle.", 2, "🕊️")
+print("🌙 [LUNAR HUB] Columbina Edition v7.0 Supreme Loaded Successfully!")
+Notify("🌙 LUNAR HUB v7.0", "Supreme Edition Loaded! Tap 🕊️ to toggle.", 2, "🕊️")
