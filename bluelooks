@@ -140,6 +140,15 @@ local Config = {
     GoalESP = true,
     AntiCameraShake = true,
 
+    -- 🤡 Human Trolling Suite (100% Legit Look & Flex)
+    HumanTrolling = true,
+    FakeShotFeint = true,
+    FakeShotKey = Enum.KeyCode.J,
+    GoalLineTease = false,
+    CrossbarDink = false,
+    AnkleBreakerBait = true,
+    TrollEmoteOnGoal = true,
+
     -- 🌐 Server & Utilities
     TPBallKey = Enum.KeyCode.T,
     TPGoalKey = Enum.KeyCode.H,
@@ -336,6 +345,16 @@ local function GetEnemyGoal()
         smartZ = (math.random() > 0.5 and 11.2 or -11.2)
     end
 
+    -- Human Trolling: Crossbar Dink (Hits top underside of crossbar for stunning post-in goals)
+    if Config.CrossbarDink then
+        return Vector3.new(targetPos.X, 6.8, targetPos.Z + smartZ)
+    end
+    
+    -- Human Trolling: Goal Line Tease (Soft ground roll directly into the center net)
+    if Config.GoalLineTease then
+        return Vector3.new(targetPos.X, 2.6, targetPos.Z)
+    end
+
     -- Precision Target Placement (Safely placed inside net: Y = 3.2 - 5.8, strictly below crossbar)
     if Config.ShotTargetMode == "Top Corners" or Config.ShotTargetMode == "Top Corners (Upper 90)" then
         targetPos = Vector3.new(targetPos.X, 5.8, targetPos.Z + smartZ)
@@ -479,6 +498,9 @@ local function BoostBallRocket(targetPos, speed)
             local ball = GetBall()
             if ball and ball:FindFirstChild("MetavisionRocketBV") then
                 ball.MetavisionRocketBV:Destroy()
+            end
+            if Config.TrollEmoteOnGoal then
+                ExecuteGoalCelebration()
             end
         end)
     end)
@@ -808,6 +830,61 @@ local function ExecuteAutoPass()
     end)
 end
 
+-- 🤡 Human Trolling Action Functions
+local function ExecuteFakeShotFeint()
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChild("Humanoid")
+        local ball = GetBall()
+        if not hrp or not hum then return end
+        
+        local distToBall = ball and (ball.Position - hrp.Position).Magnitude or 999
+        local hasBall = char:GetAttribute("HasBall") == true or distToBall <= 7.5
+        if not hasBall then
+            Notify("Human Trolling", "You need the ball to fake shot!", 1.2, "🤡")
+            return
+        end
+
+        -- Play Shot Windup Animation to fake out defenders & GK
+        pcall(function()
+            if hum and hum:FindFirstChild("Animator") and ReplicatedStorage:FindFirstChild("Anims") and ReplicatedStorage.Anims:FindFirstChild("ShotEnd") then
+                local track = hum.Animator:LoadAnimation(ReplicatedStorage.Anims.ShotEnd)
+                track:Play()
+                task.delay(0.18, function()
+                    track:Stop(0.1)
+                end)
+            end
+        end)
+
+        -- Micro-stop ball to bait slides
+        if ball and ball:IsA("BasePart") then
+            ball.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        end
+
+        -- Trigger Dribble right after baiting the slide
+        task.delay(0.24, function()
+            if Events and Events:FindFirstChild("Dribble") then
+                Events.Dribble:InvokeServer()
+            end
+            ExecuteDashBurst()
+        end)
+        
+        Notify("🤡 Fake Shot", "Feint executed! Baited slides!", 1.5, "🤡")
+    end)
+end
+
+local function ExecuteGoalCelebration()
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChild("Humanoid")
+        if hum then
+            hum.Jump = true
+            PlaySound("rbxassetid://6895079853", 1.3)
+        end
+    end)
+end
+
 -- Dynamic Viewport Sizing for Mobile & PC
 local function GetResponsiveFrameSize()
     local vp = Camera.ViewportSize
@@ -1059,8 +1136,8 @@ CloseBtnCorner.Parent = CloseBtn
 -- ==============================================================================
 local MobilePadFrame = Instance.new("Frame")
 MobilePadFrame.Name = "MobilePadFrame"
-MobilePadFrame.Size = UDim2.new(0, 62, 0, 345)
-MobilePadFrame.Position = UDim2.new(1, -74, 0.5, -172)
+MobilePadFrame.Size = UDim2.new(0, 62, 0, 375)
+MobilePadFrame.Position = UDim2.new(1, -74, 0.5, -188)
 MobilePadFrame.BackgroundColor3 = Color3.fromRGB(12, 16, 25)
 MobilePadFrame.BackgroundTransparency = 0.16
 MobilePadFrame.BorderSizePixel = 0
@@ -1185,6 +1262,10 @@ end)
 
 CreateMobileActionBtn("🎯", "PASS", Color3.fromRGB(0, 255, 220), function()
     ExecuteAutoPass()
+end)
+
+CreateMobileActionBtn("🤡", "FEINT", Color3.fromRGB(255, 170, 0), function()
+    ExecuteFakeShotFeint()
 end)
 
 CreateMobileActionBtn("⚡", "TP BALL", Color3.fromRGB(0, 220, 255), function()
@@ -2349,7 +2430,50 @@ CombatTab:AddButton("Burst Mash (Win Instant Clash)", "Mash Burst", function()
     end
 end)
 
--- 👁️ Tab 6: Visuals & World ESP
+-- 🤡 Tab 6: Human Trolling (100% Legit Look & Mind Games)
+local TrollTab = CreateTab("Human Trolling", "🤡", "Mind Games & Flex")
+TrollTab:AddSection("Mind Games & Baiting")
+TrollTab:AddToggle("Master Human Trolling Mode", Config.HumanTrolling, function(v)
+    Config.HumanTrolling = v
+    Notify("Human Trolling", v and "Enabled: 100% Legit-Looking Troll Mode Active!" or "Disabled", 2, "🤡")
+end)
+
+TrollTab:AddToggle("Fake Shot Feint (Bait Slides)", Config.FakeShotFeint, function(v)
+    Config.FakeShotFeint = v
+end)
+
+TrollTab:AddButton("Execute Fake Shot Feint", "Fake Shot", function()
+    ExecuteFakeShotFeint()
+end)
+
+TrollTab:AddKeybind("Fake Shot Feint Key", Config.FakeShotKey, function(key)
+    Config.FakeShotKey = key
+    ExecuteFakeShotFeint()
+end)
+
+TrollTab:AddToggle("Ankle Breaker Bait (Stand & Juke)", Config.AnkleBreakerBait, function(v)
+    Config.AnkleBreakerBait = v
+end)
+
+TrollTab:AddSection("Goal Showboating & Finish")
+TrollTab:AddToggle("Crossbar Dink (Top-Post Style Goal)", Config.CrossbarDink, function(v)
+    Config.CrossbarDink = v
+    if v then
+        Config.ShotTargetMode = "Top Corners"
+    end
+    Notify("Crossbar Dink", v and "ON: Snipes under crossbar with style!" or "OFF", 1.5, "🥅")
+end)
+
+TrollTab:AddToggle("Goal Line Tease (Walk-In Finish)", Config.GoalLineTease, function(v)
+    Config.GoalLineTease = v
+    Notify("Goal Line Tease", v and "ON: Teases GK at goal line!" or "OFF", 1.5, "🕺")
+end)
+
+TrollTab:AddToggle("Auto Flex & Celebrate on Goal", Config.TrollEmoteOnGoal, function(v)
+    Config.TrollEmoteOnGoal = v
+end)
+
+-- 👁️ Tab 7: Visuals & World ESP
 local VisualsTab = CreateTab("Visuals", "👁️", "ESP & Metavision")
 VisualsTab:AddSection("Ball Visuals")
 VisualsTab:AddToggle("Ball Metavision ESP", Config.BallESP, function(v)
@@ -2509,6 +2633,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
     if processed or UserInputService:GetFocusedTextBox() then return end
     if input.KeyCode == Config.InstantGoalKey then
         FireSuperShot()
+    elseif input.KeyCode == Config.FakeShotKey then
+        ExecuteFakeShotFeint()
     elseif input.KeyCode == Config.AutoPassKey then
         ExecuteAutoPass()
     elseif input.KeyCode == Config.DashBurstKey then
