@@ -432,22 +432,16 @@ local function BoostBallRocket(targetPos, speed)
                         return
                     end
                     
-                    local distToGoal = math.abs(ball.Position.X - targetPos.X)
-                    local isInsideNet = distToGoal <= 12
-                    
-                    -- Phase through GK dive hitbox during flight, re-enable touch only inside net for goal sensor
-                    ball.CanCollide = false
-                    if isInsideNet then
-                        ball.CanTouch = true
-                    else
-                        ball.CanTouch = false
-                    end
-                    
                     -- Break any residual weld to character or other players
                     for _, j in ipairs(ball:GetChildren()) do
                         if j:IsA("JointInstance") or j:IsA("WeldConstraint") then
                             j:Destroy()
                         end
+                    end
+                    
+                    -- Prevent falling through ground
+                    if ball.Position.Y < 1.5 then
+                        ball.Position = Vector3.new(ball.Position.X, 2.6, ball.Position.Z)
                     end
                     
                     local dir = (targetPos - ball.Position).Unit
@@ -483,11 +477,8 @@ local function BoostBallRocket(targetPos, speed)
         
         pcall(function()
             local ball = GetBall()
-            if ball then
-                ball.CanTouch = true
-                if ball:FindFirstChild("MetavisionRocketBV") then
-                    ball.MetavisionRocketBV:Destroy()
-                end
+            if ball and ball:FindFirstChild("MetavisionRocketBV") then
+                ball.MetavisionRocketBV:Destroy()
             end
         end)
     end)
@@ -661,7 +652,6 @@ local function FireSuperShot()
                         child:Destroy()
                     end
                 end
-                ball.CanCollide = false
             end
         end)
 
@@ -803,7 +793,6 @@ local function ExecuteAutoPass()
                     pcall(function()
                         local b = GetBall()
                         if b and b:IsA("BasePart") then
-                            b.CanCollide = false
                             local d = (leadPos - b.Position).Unit
                             b.AssemblyLinearVelocity = d * 95
                         end
@@ -2885,10 +2874,10 @@ RunService.RenderStepped:Connect(function(dt)
         local ball = GetBall()
         if not ball or not ball:IsA("BasePart") then return end
         
-        -- Anti-Climb / Anti-Float Safeguard: Disable physical collision on ball
-        ball.CanCollide = false
-        for _, c in ipairs(ball:GetChildren()) do
-            if c:IsA("BasePart") then c.CanCollide = false end
+        -- Anti-Void & Ground Safety: Ensure ball never falls through pitch floor
+        if ball.Position.Y < 1.2 then
+            ball.Position = Vector3.new(ball.Position.X, 2.5, ball.Position.Z)
+            ball.AssemblyLinearVelocity = Vector3.new(ball.AssemblyLinearVelocity.X, math.max(0, ball.AssemblyLinearVelocity.Y), ball.AssemblyLinearVelocity.Z)
         end
         
         local hasBall = char:GetAttribute("HasBall") == true or ball.Parent == char
