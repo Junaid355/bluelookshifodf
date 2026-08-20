@@ -156,6 +156,9 @@ local Config = {
     ToggleUIKey = Enum.KeyCode.LeftControl,
     StaffDetector = true,
     AutoLeaveOnStaff = false,
+    AutoJoinTeam = true,
+    TargetTeam = "Auto (Any Open)",
+    TargetRole = "CF",
 
     -- 📱 Mobile & Performance
     MobileMode = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled,
@@ -955,6 +958,52 @@ local function ExecuteGoalCelebration()
         if hum then
             hum.Jump = true
             PlaySound("rbxassetid://6895079853", 1.3)
+        end
+    end)
+end
+
+-- 👥 Team Auto-Join Logic
+local function JoinTeam(teamName, roleName)
+    pcall(function()
+        local joinRemote = ReplicatedStorage:FindFirstChild("Events") 
+            and ReplicatedStorage.Events:FindFirstChild("Game") 
+            and ReplicatedStorage.Events.Game:FindFirstChild("JoinGame")
+        if joinRemote then
+            joinRemote:FireServer(teamName, roleName)
+        end
+    end)
+end
+
+local function ExecuteAutoJoinTeam(notify)
+    pcall(function()
+        local currentTeam = LocalPlayer.Team and LocalPlayer.Team.Name
+        if currentTeam == "Home" or currentTeam == "Away" then
+            if notify then
+                Notify("Team Join", "You are already on team " .. currentTeam .. "!", 1.5, "👥")
+            end
+            return
+        end
+
+        local preferredRole = Config.TargetRole == "Any Open Role" and "CF" or Config.TargetRole
+        local allRoles = {"CF", "LW", "RW", "CM", "GK"}
+        
+        if Config.TargetTeam == "Home" then
+            JoinTeam("Home", preferredRole)
+            for _, r in ipairs(allRoles) do JoinTeam("Home", r) end
+            if notify then Notify("Team Join", "Attempting to join Home team (" .. preferredRole .. ")...", 1.5, "👥") end
+        elseif Config.TargetTeam == "Away" then
+            JoinTeam("Away", preferredRole)
+            for _, r in ipairs(allRoles) do JoinTeam("Away", r) end
+            if notify then Notify("Team Join", "Attempting to join Away team (" .. preferredRole .. ")...", 1.5, "👥") end
+        else
+            -- Auto (Any Open) - try both teams
+            JoinTeam("Home", preferredRole)
+            JoinTeam("Away", preferredRole)
+            for _, r in ipairs(allRoles) do
+                JoinTeam("Home", r)
+                JoinTeam("Away", r)
+            end
+            if notify then Notify("Team Join", "Attempting to join any open team...", 1.5, "👥") end
         end
     end)
 end
@@ -2652,6 +2701,25 @@ ServerTab:AddToggle("Auto-Leave on Staff Join", Config.AutoLeaveOnStaff, functio
     Config.AutoLeaveOnStaff = v
 end)
 
+ServerTab:AddSection("👥 Team Auto-Join & Match")
+ServerTab:AddToggle("Auto-Join Match Team", Config.AutoJoinTeam, function(v)
+    Config.AutoJoinTeam = v
+    Notify("Auto Join", v and "Enabled: Will automatically join open match team!" or "Disabled", 1.5, "👥")
+    if v then ExecuteAutoJoinTeam(false) end
+end)
+
+ServerTab:AddDropdown("Preferred Team", {"Auto (Any Open)", "Home", "Away"}, Config.TargetTeam, function(v)
+    Config.TargetTeam = v
+end)
+
+ServerTab:AddDropdown("Preferred Role / Position", {"CF", "LW", "RW", "CM", "GK", "Any Open Role"}, Config.TargetRole, function(v)
+    Config.TargetRole = v
+end)
+
+ServerTab:AddButton("Instant Join Match Team", "Join Now", function()
+    ExecuteAutoJoinTeam(true)
+end)
+
 ServerTab:AddSection("💾 Configuration Profile")
 ServerTab:AddToggle("Auto-Save Changes (Real-Time)", Config.AutoSave, function(v)
     Config.AutoSave = v
@@ -3372,6 +3440,21 @@ RunService.RenderStepped:Connect(function()
             TrajectoryBeam.Enabled = false
         end
     end)
+end)
+
+-- 👥 Background Auto-Join Team Loop
+task.spawn(function()
+    while true do
+        task.wait(1.5)
+        pcall(function()
+            if Config.AutoJoinTeam then
+                local currentTeam = LocalPlayer.Team and LocalPlayer.Team.Name
+                if not currentTeam or currentTeam == "Lobby" or currentTeam == "None" then
+                    ExecuteAutoJoinTeam(false)
+                end
+            end
+        end)
+    end
 end)
 
 print("🌙 [LUNAR HUB] Columbina Edition v7.0 Supreme Loaded Successfully!")
