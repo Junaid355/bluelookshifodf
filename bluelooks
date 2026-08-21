@@ -90,6 +90,9 @@ local Config = {
     KnuckleIntensity = 15,
     AutoPass = true,
     AutoPassKey = Enum.KeyCode.Z,
+    PassMode = "Smart Through Ball",
+    PassLeadingMultiplier = 1.4,
+    PassPower = 85,
     ReboundMagnet = true,
     InstantGoalKey = Enum.KeyCode.G,
     TrajectoryESP = true,
@@ -140,6 +143,8 @@ local Config = {
 
     -- 🛡️ Defense & Reach
     AutoTackle = true,
+    AutoStealTeleport = false,
+    AutoStealEnemiesOnly = true,
     TackleDistance = 18,
     TackleKey = Enum.KeyCode.F,
     HitboxExpander = false,
@@ -380,6 +385,64 @@ pcall(function()
     if Modules and Modules:FindFirstChild("Admins") then Admins = require(Modules.Admins) end
     if Modules and Modules:FindFirstChild("BanAdmins") then BanAdmins = require(Modules.BanAdmins) end
 end)
+
+local function GetPlayerTeamName(plr)
+    if not plr or not plr:IsA("Player") then return nil end
+    if plr.Team then
+        return plr.Team.Name
+    end
+    local attrTeam = plr:GetAttribute("Team") or plr:GetAttribute("TeamName") or plr:GetAttribute("Side")
+    if attrTeam and tostring(attrTeam) ~= "" then
+        return tostring(attrTeam)
+    end
+    local leaderstats = plr:FindFirstChild("leaderstats")
+    if leaderstats then
+        local teamVal = leaderstats:FindFirstChild("Team") or leaderstats:FindFirstChild("TeamName")
+        if teamVal and teamVal.Value and tostring(teamVal.Value) ~= "" then
+            return tostring(teamVal.Value)
+        end
+    end
+    local char = plr.Character
+    if char then
+        local charTeam = char:GetAttribute("Team") or char:GetAttribute("Side")
+        if charTeam and tostring(charTeam) ~= "" then
+            return tostring(charTeam)
+        end
+    end
+    return nil
+end
+
+local function IsTeammate(plr)
+    if not plr or plr == LocalPlayer then return false end
+    local myTeam = GetPlayerTeamName(LocalPlayer)
+    local theirTeam = GetPlayerTeamName(plr)
+    
+    if myTeam and theirTeam and myTeam ~= "" and theirTeam ~= "" then
+        return string.lower(myTeam) == string.lower(theirTeam)
+    end
+    
+    if LocalPlayer.Team and plr.Team then
+        return LocalPlayer.Team == plr.Team
+    end
+    
+    return false
+end
+
+local function IsEnemy(plr)
+    if not plr or plr == LocalPlayer then return false end
+    local myTeam = GetPlayerTeamName(LocalPlayer)
+    local theirTeam = GetPlayerTeamName(plr)
+    
+    if myTeam and theirTeam and myTeam ~= "" and theirTeam ~= "" then
+        return string.lower(myTeam) ~= string.lower(theirTeam)
+    end
+    
+    if LocalPlayer.Team and plr.Team then
+        return LocalPlayer.Team ~= plr.Team
+    end
+    
+    return true
+end
 
 local function GetBall()
     if Workspace:FindFirstChild("Ball") and Workspace.Ball:IsA("BasePart") then return Workspace.Ball end
@@ -888,37 +951,94 @@ local function GetBestTeammatePassTarget()
     if not myHrp then return nil end
     
     local enemyGoal = GetEnemyGoal()
-    local bestTeammate = nil
-    local bestScore = -9999
+    local bestTarget = nil
+    local bestScore = -99999
     
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and (plr.Team == LocalPlayer.Team or (not plr.Team and not LocalPlayer.Team)) and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local tHrp = plr.Character.HumanoidRootPart
-            local distToMe = (tHrp.Position - myHrp.Position).Magnitude
-            if distToMe >= 10 and distToMe <= 160 then
-                local distToGoal = (tHrp.Position - enemyGoal).Magnitude
-                local forwardScore = 250 - distToGoal
-                
-                local isMarked = false
-                for _, enemy in ipairs(Players:GetPlayers()) do
-                    if enemy ~= plr and enemy.Team ~= plr.Team and enemy.Character and enemy.Character:FindFirstChild("HumanoidRootPart") then
-                        if (enemy.Character.HumanoidRootPart.Position - tHrp.Position).Magnitude < 12 then
-                            isMarked = true
-                            break
+    local allPlayers = Players:GetPlayers()
+    for _, plr in ipairs(allPlayers) do
+        if plr ~= LocalPlayer and IsTeammate(plr) and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local tChar = plr.Character
+            local tHrp = tChar.HumanoidRootPart
+            local hum = tChar:FindFirstChild("Humanoid")
+            
+            -- Only consider conscious / active teammates
+            local isKnocked = tChar:GetAttribute("Ragdoll") == true or tChar:GetAttribute("Sliding") == true or (hum and hum.Health <= 0)
+            if not isKnocked then
+                local distToMe = (tHrp.Position - myHrp.Position).Magnitude
+                if distToMe >= 8 and distToMe <= 220 then
+                    local distToGoal = (tHrp.Position - enemyGoal).Magnitude
+                    local forwardScore = 320 - distToGoal
+                    
+                    -- Dynamic leading calculation
+                    local moveDir = hum and hum.MoveDirection or Vector3.zero
+                    local tVel = tHrp.AssemblyLinearVelocity
+                    local horizontalSpeed = Vector3.new(tVel.X, 0, tVel.Z).Magnitude
+                    local leadMultiplier = Config.PassLeadingMultiplier or 1.4
+                    local leadDist = math.clamp(horizontalSpeed * 0.32 * leadMultiplier, 0, 20)
+                    local forwardToGoal = (enemyGoal - tHrp.Position).Unit
+                    
+                    local leadOffset = (moveDir.Magnitude > 0.1) 
+                        and (moveDir.Unit * leadDist) 
+                        or (forwardToGoal * 4.0)
+                    
+                    if Config.PassMode == "Direct To Feet" then
+                        leadOffset = Vector3.zero
+                    end
+                    
+                    local leadPos = tHrp.Position + leadOffset + Vector3.new(0, 0.4, 0)
+                    
+                    -- Interception analysis along the pass trajectory line
+                    local pA = myHrp.Position
+                    local pB = leadPos
+                    local seg = (pB - pA)
+                    local segLen = seg.Magnitude
+                    local minEnemyDistToLane = 999
+                    local markedEnemyCount = 0
+                    
+                    for _, enemy in ipairs(allPlayers) do
+                        if enemy ~= plr and IsEnemy(enemy) and enemy.Character and enemy.Character:FindFirstChild("HumanoidRootPart") then
+                            local ePos = enemy.Character.HumanoidRootPart.Position
+                            
+                            -- Check lane collision
+                            local tProj = math.clamp((ePos - pA):Dot(seg) / (segLen * segLen), 0, 1)
+                            local closestPoint = pA + (seg * tProj)
+                            local distToLane = (ePos - closestPoint).Magnitude
+                            if distToLane < minEnemyDistToLane then
+                                minEnemyDistToLane = distToLane
+                            end
+                            
+                            -- Check tight marking at receiving point
+                            if (ePos - leadPos).Magnitude < 11 then
+                                markedEnemyCount = markedEnemyCount + 1
+                            end
                         end
                     end
-                end
-                
-                local score = forwardScore - (isMarked and 70 or 0) - (distToMe * 0.25)
-                if score > bestScore then
-                    bestScore = score
-                    bestTeammate = plr.Character
+                    
+                    -- Score calculation: Higher score for forward open space & safe lanes
+                    local laneSafetyBonus = (minEnemyDistToLane >= 14) and 60 or (minEnemyDistToLane < 7.5 and -120 or (minEnemyDistToLane * 3.5))
+                    local markingPenalty = markedEnemyCount * 55
+                    local distancePenalty = math.abs(distToMe - 45) * 0.35
+                    
+                    local totalScore = forwardScore + laneSafetyBonus - markingPenalty - distancePenalty
+                    
+                    if totalScore > bestScore then
+                        bestScore = totalScore
+                        bestTarget = {
+                            Player = plr,
+                            Character = tChar,
+                            Hrp = tHrp,
+                            LeadPosition = leadPos,
+                            LaneSafety = minEnemyDistToLane,
+                            Score = totalScore,
+                            Distance = distToMe
+                        }
+                    end
                 end
             end
         end
     end
     
-    return bestTeammate
+    return bestTarget
 end
 
 local function ExecuteAutoPass()
@@ -935,35 +1055,53 @@ local function ExecuteAutoPass()
             return
         end
         
-        local targetTeammate = GetBestTeammatePassTarget()
-        if targetTeammate and targetTeammate:FindFirstChild("HumanoidRootPart") then
-            local tHrp = targetTeammate.HumanoidRootPart
-            local hum = targetTeammate:FindFirstChild("Humanoid")
-            local leadPos = tHrp.Position + (hum and (hum.MoveDirection * 4.5) or Vector3.zero) + Vector3.new(0, 0.4, 0)
-            local passDir = (leadPos - hrp.Position).Unit
+        local target = GetBestTeammatePassTarget()
+        if target and target.LeadPosition then
+            local leadPos = target.LeadPosition
+            local passPower = Config.PassPower or 85
+            local passMode = Config.PassMode or "Smart Through Ball"
+            
+            local yBoost = 0.4
+            if passMode == "Lofted Lob" or target.LaneSafety < 8.5 then
+                yBoost = math.clamp(target.Distance * 0.14, 2.5, 9.0)
+            end
+            
+            local passTargetFinal = leadPos + Vector3.new(0, yBoost, 0)
+            local passDir = (passTargetFinal - hrp.Position).Unit
             
             lastShotTick = tick()
             if Events and Events:FindFirstChild("ShootBall") then
-                Events.ShootBall:FireServer(passDir, 75)
+                Events.ShootBall:FireServer(passDir, passPower)
             end
             
+            -- Intelligent Physics Assist & Guidance
             task.spawn(function()
                 local startTime = tick()
-                while (tick() - startTime) < 1.4 do
+                local flyDuration = math.clamp(target.Distance / 80, 0.45, 1.4)
+                while (tick() - startTime) < flyDuration do
                     pcall(function()
                         local b = GetBall()
                         if b and b:IsA("BasePart") then
-                            local d = (leadPos - b.Position).Unit
-                            b.AssemblyLinearVelocity = d * 95
+                            local currentTarget = target.Hrp and (target.Hrp.Position + Vector3.new(0, 0.4, 0)) or leadPos
+                            local d = (currentTarget - b.Position)
+                            if d.Magnitude <= 3.2 then
+                                b.AssemblyLinearVelocity = Vector3.zero
+                                return
+                            end
+                            local pushSpeed = math.clamp(passPower * 1.15, 75, 125)
+                            b.AssemblyLinearVelocity = d.Unit * pushSpeed
                         end
                     end)
                     task.wait(0.015)
                 end
             end)
             
-            Notify("🎯 Smart Pass", "Pass delivered to " .. targetTeammate.Name .. "!", 1.5, "🎯")
+            local targetName = target.Player.DisplayName or target.Player.Name
+            local distText = tostring(math.floor(target.Distance)) .. "m"
+            Notify("🎯 Metavision Pass", "Through-pass delivered to " .. targetName .. " (" .. distText .. ")!", 1.6, "🎯")
+            PlaySound("rbxassetid://6895079853", 1.35)
         else
-            Notify("Notice", "No open teammates in passing range!", 1.2, "⚠️")
+            Notify("Notice", "No open teammates in clear passing lane!", 1.3, "⚠️")
         end
     end)
 end
@@ -1670,7 +1808,7 @@ CreateMobileActionBtn("⚡", "TACKLE", Color3.fromRGB(255, 80, 80), function()
     pcall(function()
         if Events and Events:FindFirstChild("SlideBegan") then Events.SlideBegan:FireServer() end
         for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character and plr.Character:GetAttribute("HasBall") == true then
+            if plr ~= LocalPlayer and IsEnemy(plr) and plr.Character and plr.Character:GetAttribute("HasBall") == true then
                 if Events and Events:FindFirstChild("StealBallSlide") then Events.StealBallSlide:InvokeServer(plr.Character) end
             end
         end
@@ -2428,6 +2566,20 @@ end)
 AimTab:AddSection("Assists & Passing")
 AimTab:AddToggle("Smart Teammate Auto-Pass", Config.AutoPass, function(v)
     Config.AutoPass = v
+    Notify("Smart Pass", v and "Enabled: Metavision dynamic through-ball passing" or "Disabled", 1.5, "🎯")
+end)
+
+AimTab:AddDropdown("Pass Style", {"Smart Through Ball", "Direct To Feet", "Lofted Lob"}, Config.PassMode, function(mode)
+    Config.PassMode = mode
+    Notify("Pass Style", "Set to: " .. mode, 1.5, "🎯")
+end)
+
+AimTab:AddSlider("Pass Prediction Leading", 0.5, 3.0, Config.PassLeadingMultiplier, "x", function(v)
+    Config.PassLeadingMultiplier = v
+end)
+
+AimTab:AddSlider("Pass Launch Power", 50, 150, Config.PassPower, " stud/s", function(v)
+    Config.PassPower = v
 end)
 
 AimTab:AddKeybind("Auto-Pass Keybind", Config.AutoPassKey, function()
@@ -2657,13 +2809,24 @@ end)
 DefTab:AddSection("Field Defense & Reach")
 DefTab:AddToggle("Auto Slide Steal / Tackle", Config.AutoTackle, function(v)
     Config.AutoTackle = v
+    Notify("Auto Tackle", v and "Enabled: Will automatically steal ball from enemies." or "Disabled", 1.5, "🛡️")
+end)
+
+DefTab:AddToggle("Steal Teleport / Lunge TP", Config.AutoStealTeleport, function(v)
+    Config.AutoStealTeleport = v
+    Notify("Steal Teleport", v and "Enabled: Physical lunge towards ball carrier." or "Disabled: Normal position steal (No TP)", 1.5, "🛡️")
+end)
+
+DefTab:AddToggle("Enemy-Only Strict Filter", Config.AutoStealEnemiesOnly, function(v)
+    Config.AutoStealEnemiesOnly = v
+    Notify("Enemy-Only Filter", v and "Enabled: Teammates will never be tackled." or "Disabled", 1.5, "🛡️")
 end)
 
 DefTab:AddKeybind("Manual Tackle Key", Config.TackleKey, function()
     pcall(function()
         if Events and Events:FindFirstChild("SlideBegan") then Events.SlideBegan:FireServer() end
         for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character and plr.Character:GetAttribute("HasBall") == true then
+            if plr ~= LocalPlayer and IsEnemy(plr) and plr.Character and plr.Character:GetAttribute("HasBall") == true then
                 if Events and Events:FindFirstChild("StealBallSlide") then Events.StealBallSlide:InvokeServer(plr.Character) end
             end
         end
@@ -3347,43 +3510,48 @@ RunService.Heartbeat:Connect(function()
         if Config.AutoTackle and not hasBall and (now - lastTackleTick) >= 0.05 then
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                    local enemyChar = plr.Character
-                    local enemyHrp = enemyChar.HumanoidRootPart
-                    local dist = (enemyHrp.Position - myHrp.Position).Magnitude
-                    
-                    local enemyHasBall = enemyChar:GetAttribute("HasBall") == true 
-                        or (ball and ball.Parent == enemyChar)
-                        or (ball and (ball.Position - enemyHrp.Position).Magnitude <= 8.5)
-                    
-                    if enemyHasBall and dist <= (Config.TackleDistance + 6) then
-                        lastTackleTick = now
+                    local isTargetEnemy = (not Config.AutoStealEnemiesOnly) or IsEnemy(plr)
+                    if isTargetEnemy then
+                        local enemyChar = plr.Character
+                        local enemyHrp = enemyChar.HumanoidRootPart
+                        local dist = (enemyHrp.Position - myHrp.Position).Magnitude
                         
-                        -- Non-blocking concurrent remote execution
-                        task.spawn(function()
-                            if Events and Events:FindFirstChild("SlideBegan") then
-                                Events.SlideBegan:FireServer()
-                            end
-                            if Events and Events:FindFirstChild("StealBallSlide") and plr.Team and LocalPlayer.Team and plr.Team ~= LocalPlayer.Team then
+                        local enemyHasBall = enemyChar:GetAttribute("HasBall") == true 
+                            or (ball and ball.Parent == enemyChar)
+                            or (ball and (ball.Position - enemyHrp.Position).Magnitude <= 8.5)
+                        
+                        if enemyHasBall and dist <= (Config.TackleDistance + 6) then
+                            lastTackleTick = now
+                            
+                            -- Non-blocking concurrent remote execution
+                            task.spawn(function()
+                                if Events and Events:FindFirstChild("SlideBegan") then
+                                    Events.SlideBegan:FireServer()
+                                end
+                                if Events and Events:FindFirstChild("StealBallSlide") then
+                                    pcall(function()
+                                        Events.StealBallSlide:InvokeServer(enemyChar)
+                                    end)
+                                end
+                            end)
+                            
+                            -- Optional Physical Slide Lunge Acceleration to close distance (Only when enabled)
+                            if Config.AutoStealTeleport then
                                 pcall(function()
-                                    Events.StealBallSlide:InvokeServer(enemyChar)
+                                    local lungeDir = (enemyHrp.Position - myHrp.Position).Unit
+                                    if myHrp:FindFirstChild("StealLungeBV") then myHrp.StealLungeBV:Destroy() end
+                                    local lungeBV = Instance.new("BodyVelocity")
+                                    lungeBV.Name = "StealLungeBV"
+                                    lungeBV.MaxForce = Vector3.new(1e6, 0, 1e6)
+                                    lungeBV.Velocity = Vector3.new(lungeDir.X, 0, lungeDir.Z).Unit * 115
+                                    lungeBV.Parent = myHrp
+                                    task.delay(0.20, function()
+                                        if lungeBV and lungeBV.Parent then lungeBV:Destroy() end
+                                    end)
                                 end)
                             end
-                        end)
-                        
-                        -- Physical Slide Lunge Acceleration to close distance instantly
-                        pcall(function()
-                            local lungeDir = (enemyHrp.Position - myHrp.Position).Unit
-                            if myHrp:FindFirstChild("StealLungeBV") then myHrp.StealLungeBV:Destroy() end
-                            local lungeBV = Instance.new("BodyVelocity")
-                            lungeBV.Name = "StealLungeBV"
-                            lungeBV.MaxForce = Vector3.new(1e6, 0, 1e6)
-                            lungeBV.Velocity = Vector3.new(lungeDir.X, 0, lungeDir.Z).Unit * 115
-                            lungeBV.Parent = myHrp
-                            task.delay(0.20, function()
-                                if lungeBV and lungeBV.Parent then lungeBV:Destroy() end
-                            end)
-                        end)
-                        break
+                            break
+                        end
                     end
                 end
             end
@@ -3590,7 +3758,7 @@ RunService.Heartbeat:Connect(function()
                 end
                 
                 for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer and plr.Character and plr.Character:GetAttribute("HasBall") == true then
+                    if plr ~= LocalPlayer and IsEnemy(plr) and plr.Character and plr.Character:GetAttribute("HasBall") == true then
                         if Events and Events:FindFirstChild("StealBallSlide") then
                             Events.StealBallSlide:InvokeServer(plr.Character)
                         end
@@ -3874,12 +4042,12 @@ RunService.RenderStepped:Connect(function()
             local activePlrs = Players:GetPlayers()
             for _, plr in ipairs(activePlrs) do
                 if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                    local isTeammate = (plr.Team == LocalPlayer.Team) or (not plr.Team and not LocalPlayer.Team)
+                    local isTeammate = IsTeammate(plr)
                     if isTeammate then
                         local tHrp = plr.Character.HumanoidRootPart
                         local dist = (tHrp.Position - myHrp.Position).Magnitude
                         
-                        if dist <= 160 then
+                        if dist <= 180 then
                             local beamData = passBeams[plr]
                             if not beamData then
                                 local a0 = Instance.new("Attachment", Workspace.Terrain)
@@ -3902,7 +4070,7 @@ RunService.RenderStepped:Connect(function()
                             local segLen = seg.Magnitude
 
                             for _, enemy in ipairs(activePlrs) do
-                                if enemy ~= plr and enemy ~= LocalPlayer and enemy.Team ~= LocalPlayer.Team and enemy.Character and enemy.Character:FindFirstChild("HumanoidRootPart") then
+                                if enemy ~= plr and enemy ~= LocalPlayer and IsEnemy(enemy) and enemy.Character and enemy.Character:FindFirstChild("HumanoidRootPart") then
                                     local ePos = enemy.Character.HumanoidRootPart.Position
                                     local tProj = math.clamp((ePos - pA):Dot(seg) / (segLen * segLen), 0, 1)
                                     local closestPoint = pA + (seg * tProj)
@@ -3935,7 +4103,7 @@ RunService.RenderStepped:Connect(function()
 
         if Config.TackleDangerZoneESP and myHrp then
             for _, plr in ipairs(Players:GetPlayers()) do
-                if plr ~= LocalPlayer and plr.Team ~= LocalPlayer.Team and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                if plr ~= LocalPlayer and IsEnemy(plr) and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                     local eChar = plr.Character
                     local eHrp = eChar.HumanoidRootPart
                     local dist = (eHrp.Position - myHrp.Position).Magnitude
