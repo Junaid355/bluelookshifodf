@@ -1725,17 +1725,21 @@ local function CreateTab(name, icon, subtitle)
     }
     table.insert(AllTabs, tabData)
 
+    -- Reusable Tween Constants for Zero Lag
+    local TWEEN_FAST = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local TWEEN_SMOOTH = TweenInfo.new(0.20, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
+
     local function SetActive()
         for _, t in ipairs(AllTabs) do
             t.Page.Visible = false
             t.Indicator.Visible = false
-            TweenService:Create(t.Button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(17, 22, 33)}):Play()
-            TweenService:Create(t.Title, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(160, 175, 200)}):Play()
+            TweenService:Create(t.Button, TWEEN_SMOOTH, {BackgroundColor3 = Color3.fromRGB(17, 22, 33)}):Play()
+            TweenService:Create(t.Title, TWEEN_SMOOTH, {TextColor3 = Color3.fromRGB(160, 175, 200)}):Play()
         end
         Page.Visible = true
         ActiveIndicator.Visible = true
-        TweenService:Create(TabButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(24, 32, 48)}):Play()
-        TweenService:Create(TabTitle, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(0, 235, 255)}):Play()
+        TweenService:Create(TabButton, TWEEN_SMOOTH, {BackgroundColor3 = Color3.fromRGB(26, 34, 52)}):Play()
+        TweenService:Create(TabTitle, TWEEN_SMOOTH, {TextColor3 = Color3.fromRGB(255, 158, 198)}):Play()
         CurrentActiveTab = tabData
     end
 
@@ -1760,7 +1764,7 @@ local function CreateTab(name, icon, subtitle)
         SecLabel.Size = UDim2.new(1, 0, 1, 0)
         SecLabel.BackgroundTransparency = 1
         SecLabel.Text = string.upper(text)
-        SecLabel.TextColor3 = Color3.fromRGB(0, 210, 255)
+        SecLabel.TextColor3 = Color3.fromRGB(120, 213, 255)
         SecLabel.Font = Enum.Font.GothamBold
         SecLabel.TextSize = 11
         SecLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -1798,7 +1802,7 @@ local function CreateTab(name, icon, subtitle)
         local SwitchPill = Instance.new("Frame")
         SwitchPill.Size = UDim2.new(0, 42, 0, 22)
         SwitchPill.Position = UDim2.new(1, -54, 0.5, -11)
-        SwitchPill.BackgroundColor3 = default and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(35, 45, 65)
+        SwitchPill.BackgroundColor3 = default and Color3.fromRGB(255, 158, 198) or Color3.fromRGB(35, 45, 65)
         SwitchPill.BorderSizePixel = 0
         SwitchPill.Parent = ToggleFrame
 
@@ -1829,10 +1833,10 @@ local function CreateTab(name, icon, subtitle)
         ClickArea.MouseButton1Click:Connect(function()
             state = not state
             PlaySound(nil, state and 1.2 or 0.95)
-            TweenService:Create(SwitchPill, TweenInfo.new(0.2), {
-                BackgroundColor3 = state and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(35, 45, 65)
+            TweenService:Create(SwitchPill, TWEEN_SMOOTH, {
+                BackgroundColor3 = state and Color3.fromRGB(255, 158, 198) or Color3.fromRGB(35, 45, 65)
             }):Play()
-            TweenService:Create(Thumb, TweenInfo.new(0.2), {
+            TweenService:Create(Thumb, TWEEN_SMOOTH, {
                 Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
             }):Play()
             pcall(callback, state)
