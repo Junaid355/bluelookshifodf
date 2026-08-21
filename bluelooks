@@ -36,14 +36,39 @@ local function GetSafeUIParent()
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
-local UI_PARENT = GetSafeUIParent()
+local getgenv = getgenv or function() return _G end
+local SESSION_ID = tostring(math.random(100000, 999999)) .. "_" .. tostring(tick())
+getgenv()._LUNAR_CURRENT_SESSION = SESSION_ID
 
--- Clean up any prior instances
-pcall(function()
-    if CoreGui:FindFirstChild("LunarHub") then CoreGui.LunarHub:Destroy() end
-    if LocalPlayer.PlayerGui:FindFirstChild("LunarHub") then LocalPlayer.PlayerGui.LunarHub:Destroy() end
-    if gethui and gethui() and gethui():FindFirstChild("LunarHub") then gethui().LunarHub:Destroy() end
-end)
+if getgenv()._LUNAR_CLEANUP_ALL then
+    pcall(getgenv()._LUNAR_CLEANUP_ALL)
+end
+
+local ActiveConnections = {}
+local function SafeConnect(signal, fn)
+    local conn = signal:Connect(fn)
+    table.insert(ActiveConnections, conn)
+    return conn
+end
+
+getgenv()._LUNAR_CLEANUP_ALL = function()
+    for _, c in ipairs(ActiveConnections) do
+        pcall(function() c:Disconnect() end)
+    end
+    table.clear(ActiveConnections)
+    pcall(function()
+        if CoreGui:FindFirstChild("LunarHub") then CoreGui.LunarHub:Destroy() end
+        if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("LunarHub") then
+            LocalPlayer.PlayerGui.LunarHub:Destroy()
+        end
+    end)
+end
+
+local function IsSessionActive()
+    return getgenv()._LUNAR_CURRENT_SESSION == SESSION_ID
+end
+
+local UI_PARENT = GetSafeUIParent()
 
 -- ==============================================================================
 --                               CONFIGURATION
@@ -1057,7 +1082,7 @@ end
 
 -- Auto-Gacha Roller Loop (Ultra-Fast)
 task.spawn(function()
-    while true do
+    while IsSessionActive() do
         task.wait(Config.RollDelay or 0.05)
         if Config.AutoRollCharacter then
             pcall(function()
@@ -1138,7 +1163,7 @@ end)
 -- Autonomous 100% Precision Goal Auto-Farm Engine
 local lastFarmShotTick = 0
 task.spawn(function()
-    while true do
+    while IsSessionActive() do
         task.wait(0.04)
         if Config.GoalAutoFarm then
             pcall(function()
@@ -1404,7 +1429,7 @@ StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatsLabel.Parent = StatsBadge
 
 task.spawn(function()
-    while true do
+    while IsSessionActive() do
         task.wait(0.5)
         pcall(function()
             local fps = math.floor(Workspace:GetRealPhysicsFPS())
@@ -2526,7 +2551,18 @@ local FarmTab = CreateTab("Auto-Farm", "🏆", "Goal Farm & Gacha")
 FarmTab:AddSection("🏆 Autonomous Goal Farm")
 FarmTab:AddToggle("Master Autonomous Goal Farm", Config.GoalAutoFarm, function(v)
     Config.GoalAutoFarm = v
-    Notify("Goal Farm", v and "Enabled: Auto-scoring active! Sit back & farm." or "Disabled", 2, "🏆")
+    if not v then
+        pcall(function()
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.AssemblyLinearVelocity = Vector3.zero
+            end
+        end)
+        Notify("Goal Farm", "Disabled & All Farming Halted.", 1.5, "🛑")
+    else
+        Notify("Goal Farm", "Enabled: Autonomous goal scoring active.", 1.5, "🏆")
+    end
 end)
 
 FarmTab:AddSlider("Farm Cycle Delay", 0.4, 2.5, Config.AutoFarmDelay, "s", function(v)
@@ -3087,7 +3123,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 task.spawn(function()
-    while true do
+    while IsSessionActive() do
         task.wait(0.15)
         pcall(function()
             HUDFrame.Visible = Config.CyberHUD
@@ -3212,7 +3248,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 task.spawn(function()
-    while true do
+    while IsSessionActive() do
         task.wait(0.08)
         pcall(function()
             local char = LocalPlayer.Character
@@ -3673,7 +3709,7 @@ RunService.RenderStepped:Connect(function(dt)
 end)
 
 task.spawn(function()
-    while true do
+    while IsSessionActive() do
         task.wait(0.02)
         if Config.AutoMash or Config.AutoWinQTE then
             pcall(function()
@@ -3699,7 +3735,7 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    while true do
+    while IsSessionActive() do
         task.wait(0.5)
         if Config.AutoAwakening then
             pcall(function()
@@ -3933,7 +3969,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 task.spawn(function()
-    while true do
+    while IsSessionActive() do
         task.wait(1.5)
         pcall(function()
             if Config.AutoJoinTeam then
