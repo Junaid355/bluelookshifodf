@@ -217,6 +217,25 @@ local Config = {
     LowLagMode = false,
     Notifications = true,
 
+    -- 🕶️ Undercover & Stealth Engine (100% Undetectable to Spectators)
+    PlaystyleMode = "Rage OP",
+    StealthMode = false,
+    LegitAimbot = false,
+    LegitPower = 135,
+    HumanReactionGK = false,
+    HumanReactionDelay = 0.16,
+    StealthSpeed = false,
+    StealthSpeedValue = 22,
+    HideBlatantVisuals = false,
+
+    -- ⚡ Supreme OP Godmode Additions
+    KaiserImpact = false,
+    KaiserImpactKey = Enum.KeyCode.V,
+    GoalVortex = false,
+    GoalVortexPower = 45,
+    GoalVortexRadius = 65,
+    PhantomGhostDribble = true,
+
     -- 💾 Config Management
     AutoSave = true
 }
@@ -639,14 +658,16 @@ local function ExecuteGoalCelebration()
 end
 
 local function BoostBallRocket(targetPos, speed)
-    if not Config.SuperRocketShot then return end
+    if not Config.SuperRocketShot and not Config.StealthMode and not Config.LegitAimbot then return end
     lastShotTick = tick()
     task.spawn(function()
-        local targetSpeed = math.clamp(speed or Config.ShotPower, 250, 650)
+        local isStealth = Config.StealthMode or Config.LegitAimbot
+        local targetSpeed = isStealth and math.clamp(Config.LegitPower or 135, 90, 160) or math.clamp(speed or Config.ShotPower, 220, 650)
+        local duration = isStealth and 0.85 or 2.2
         local startTime = tick()
         local char = LocalPlayer.Character
         
-        while (tick() - startTime) < 2.2 do
+        while (tick() - startTime) < duration do
             pcall(function()
                 local ball = GetBall()
                 if ball and ball:IsA("BasePart") then
@@ -658,19 +679,19 @@ local function BoostBallRocket(targetPos, speed)
                         end
                     end
                     
-                    if ball.Position.Y < 1.5 then
-                        ball.Position = Vector3.new(ball.Position.X, 2.6, ball.Position.Z)
+                    if ball.Position.Y < 1.4 then
+                        ball.Position = Vector3.new(ball.Position.X, 2.2, ball.Position.Z)
                     end
                     
                     local dir = (targetPos - ball.Position).Unit
                     
                     if Config.AutoCurve then
-                        local curvePower = (Config.CurveIntensity or 25) * 0.006
-                        local curveOffset = math.sin((tick() - startTime) * 11) * curvePower
+                        local curvePower = (Config.CurveIntensity or 20) * 0.005
+                        local curveOffset = math.sin((tick() - startTime) * (isStealth and 7 or 11)) * curvePower
                         dir = Vector3.new(dir.X, dir.Y, dir.Z + curveOffset).Unit
                     end
 
-                    if Config.Knuckleball then
+                    if Config.Knuckleball and not isStealth then
                         local elapsed = tick() - startTime
                         local intensity = (Config.KnuckleIntensity or 15) * 0.001
                         local kZ = math.sin(elapsed * 18) * intensity * 8
@@ -680,20 +701,22 @@ local function BoostBallRocket(targetPos, speed)
 
                     if Config.TopspinDip and Config.TopspinDip > 0 then
                         local dipProgress = math.clamp((tick() - startTime) / 1.5, 0, 1)
-                        local dipY = - (dipProgress * dipProgress) * (Config.TopspinDip * 0.02)
+                        local dipY = - (dipProgress * dipProgress) * (Config.TopspinDip * (isStealth and 0.012 or 0.02))
                         dir = Vector3.new(dir.X, dir.Y + dipY, dir.Z).Unit
                     end
                     
                     ball.AssemblyLinearVelocity = dir * targetSpeed
                     
-                    local bv = ball:FindFirstChild("MetavisionRocketBV")
-                    if not bv then
-                        bv = Instance.new("BodyVelocity")
-                        bv.Name = "MetavisionRocketBV"
-                        bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
-                        bv.Parent = ball
+                    if not isStealth then
+                        local bv = ball:FindFirstChild("MetavisionRocketBV")
+                        if not bv then
+                            bv = Instance.new("BodyVelocity")
+                            bv.Name = "MetavisionRocketBV"
+                            bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+                            bv.Parent = ball
+                        end
+                        bv.Velocity = dir * targetSpeed
                     end
-                    bv.Velocity = dir * targetSpeed
                 end
             end)
             task.wait(0.015)
@@ -704,11 +727,149 @@ local function BoostBallRocket(targetPos, speed)
             if ball and ball:FindFirstChild("MetavisionRocketBV") then
                 ball.MetavisionRocketBV:Destroy()
             end
-            if Config.TrollEmoteOnGoal then
+            if Config.TrollEmoteOnGoal and not isStealth then
                 ExecuteGoalCelebration()
             end
         end)
     end)
+end
+
+local function ExecuteKaiserImpact()
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local ball = GetBall()
+        if not hrp or not ball then return end
+        
+        local distToBall = (ball.Position - hrp.Position).Magnitude
+        local hasBall = char:GetAttribute("HasBall") == true or (ball.Parent == char) or distToBall <= 8.5
+        if not hasBall then
+            Notify("Notice", "Get closer to the ball to fire Kaiser Impact!", 1.2, "⚠️")
+            return
+        end
+        
+        local goalPos = GetEnemyGoal()
+        local strikeDir = (goalPos - hrp.Position).Unit
+        lastShotTick = tick()
+        SessionStats.GoalsScored = SessionStats.GoalsScored + 1
+        
+        if Events and Events:FindFirstChild("ShootBall") then
+            Events.ShootBall:FireServer(strikeDir, 100)
+        end
+        if Events and Events:FindFirstChild("ShootBallForce") then
+            pcall(function() Events.ShootBallForce:FireServer(strikeDir, 100) end)
+        end
+        
+        task.spawn(function()
+            local startTime = tick()
+            while (tick() - startTime) < 0.75 do
+                pcall(function()
+                    local b = GetBall()
+                    if b and b:IsA("BasePart") then
+                        for _, j in ipairs(b:GetChildren()) do
+                            if j:IsA("JointInstance") or j:IsA("WeldConstraint") then j:Destroy() end
+                        end
+                        local dir = (goalPos - b.Position).Unit
+                        b.AssemblyLinearVelocity = dir * 320
+                        local bv = b:FindFirstChild("KaiserImpactBV")
+                        if not bv then
+                            bv = Instance.new("BodyVelocity")
+                            bv.Name = "KaiserImpactBV"
+                            bv.MaxForce = Vector3.new(1e8, 1e8, 1e8)
+                            bv.Parent = b
+                        end
+                        bv.Velocity = dir * 320
+                    end
+                end)
+                task.wait(0.01)
+            end
+            pcall(function()
+                local b = GetBall()
+                if b and b:FindFirstChild("KaiserImpactBV") then b.KaiserImpactBV:Destroy() end
+            end)
+        end)
+        
+        PlaySound("rbxassetid://6895079853", 1.45)
+        Notify("⚡ KAISER IMPACT", "Hypersonic strike pierced the net!", 1.6, "⚡")
+    end)
+end
+
+local function ApplyPlaystylePreset(presetName)
+    Config.PlaystyleMode = presetName
+    if presetName == "Undercover Legit (100% Undetectable)" or presetName == "Undercover Legit" then
+        Config.StealthMode = true
+        Config.LegitAimbot = true
+        Config.ShotPower = 135
+        Config.LegitPower = 135
+        Config.SuperRocketShot = false
+        Config.BallisticArc = true
+        Config.AutoCurve = true
+        Config.CurveIntensity = 12
+        Config.TopspinDip = 8
+        Config.Knuckleball = false
+        Config.HumanReactionGK = true
+        Config.AutoStealTeleport = false
+        Config.AutoStealEnemiesOnly = true
+        Config.TackleDistance = 14
+        Config.StealthSpeed = true
+        Config.SpeedBoost = false
+        Config.WalkSpeed = 22
+        Config.BallMagnet = false
+        Config.BallGlue = false
+        Config.BallOrbitalShield = false
+        Config.AirJuggle = false
+        Config.TrajectoryESP = false
+        Config.HideBlatantVisuals = true
+        Config.KaiserImpact = false
+        Config.GoalVortex = false
+        Notify("🕶️ Undercover Mode", "Activated! Natural aim curves, humanized reflex & spectator-safe stats.", 2.2, "🕶️")
+    elseif presetName == "Semi-Legit Pro" then
+        Config.StealthMode = false
+        Config.LegitAimbot = false
+        Config.ShotPower = 200
+        Config.SuperRocketShot = false
+        Config.AutoCurve = true
+        Config.CurveIntensity = 18
+        Config.TopspinDip = 10
+        Config.Knuckleball = true
+        Config.HumanReactionGK = false
+        Config.AutoStealTeleport = false
+        Config.AutoStealEnemiesOnly = true
+        Config.TackleDistance = 18
+        Config.SpeedBoost = true
+        Config.WalkSpeed = 26
+        Config.BallMagnet = false
+        Config.BallOrbitalShield = false
+        Config.TrajectoryESP = true
+        Config.HideBlatantVisuals = false
+        Config.KaiserImpact = false
+        Notify("⚽ Semi-Legit Pro", "Pro level stats with natural high-tier mechanics.", 2.0, "⚽")
+    elseif presetName == "Rage / Supreme Godmode" or presetName == "Rage OP" then
+        Config.StealthMode = false
+        Config.LegitAimbot = false
+        Config.ShotPower = 340
+        Config.SuperRocketShot = true
+        Config.BallisticArc = true
+        Config.AutoCurve = true
+        Config.CurveIntensity = 28
+        Config.TopspinDip = 14
+        Config.Knuckleball = true
+        Config.KnuckleIntensity = 20
+        Config.HumanReactionGK = false
+        Config.AutoStealTeleport = true
+        Config.AutoStealEnemiesOnly = true
+        Config.TackleDistance = 25
+        Config.SpeedBoost = true
+        Config.WalkSpeed = 36
+        Config.BallMagnet = true
+        Config.BallOrbitalShield = false
+        Config.TrajectoryESP = true
+        Config.HideBlatantVisuals = false
+        Config.KaiserImpact = true
+        Config.GoalVortex = true
+        Notify("⚡ Supreme Godmode", "All OP God-tier physics and super abilities unlocked!", 2.2, "⚡")
+    end
+    if Config.AutoSave then task.spawn(function() SaveConfig(true) end) end
 end
 
 -- Clean up any existing instances
@@ -2605,6 +2766,73 @@ end)
 
 -- ⚽ Tab 1: Metavision Aim & Shooting
 local AimTab = CreateTab("Metavision", "⚽", "Aimbot & Ballistics")
+
+AimTab:AddSection("⚡ Playstyle Presets & Mode Selector")
+AimTab:AddDropdown("Playstyle Mode", {"Undercover Legit (100% Undetectable)", "Semi-Legit Pro", "Rage / Supreme Godmode"}, Config.PlaystyleMode, function(mode)
+    ApplyPlaystylePreset(mode)
+end)
+
+AimTab:AddButton("Preset: 🕶️ Undercover Legit", "Activate Stealth", function()
+    ApplyPlaystylePreset("Undercover Legit")
+end)
+
+AimTab:AddButton("Preset: ⚡ Supreme Godmode", "Activate OP", function()
+    ApplyPlaystylePreset("Rage OP")
+end)
+
+AimTab:AddSection("🕶️ Stealth & Natural Play (Play Like Normal)")
+AimTab:AddToggle("Undercover Stealth Mode", Config.StealthMode, function(v)
+    Config.StealthMode = v
+    if v then ApplyPlaystylePreset("Undercover Legit") end
+    Notify("Stealth Mode", v and "ON: Natural shot power, smooth curve & human physics" or "OFF", 1.5, "🕶️")
+end)
+
+AimTab:AddSlider("Legit Natural Shot Power", 80, 160, Config.LegitPower, " stud/s", function(v)
+    Config.LegitPower = v
+end)
+
+AimTab:AddToggle("Humanized GK Reaction Delay", Config.HumanReactionGK, function(v)
+    Config.HumanReactionGK = v
+    Notify("Human GK Reflex", v and "ON: 160ms realistic human reaction delay" or "OFF", 1.5, "🧤")
+end)
+
+AimTab:AddToggle("Stealth Natural Sprint (+15%)", Config.StealthSpeed, function(v)
+    Config.StealthSpeed = v
+    Notify("Stealth Sprint", v and "ON: +15% subtle speed boost" or "OFF", 1.5, "👟")
+end)
+
+AimTab:AddToggle("Spectator Discretion (Hide Lasers)", Config.HideBlatantVisuals, function(v)
+    Config.HideBlatantVisuals = v
+    Notify("Spectator Discretion", v and "ON: Blatant tracers hidden from view" or "OFF", 1.5, "👁️")
+end)
+
+AimTab:AddSection("⚡ Supreme OP Weapons")
+AimTab:AddButton("⚡ Fire Kaiser Impact", "Fire Hypersonic", function()
+    ExecuteKaiserImpact()
+end)
+
+AimTab:AddKeybind("Kaiser Impact Hotkey", Config.KaiserImpactKey, function()
+    ExecuteKaiserImpact()
+end)
+
+AimTab:AddToggle("🕳️ Goal Vortex (Gravitational Pull)", Config.GoalVortex, function(v)
+    Config.GoalVortex = v
+    Notify("Goal Vortex", v and "ON: Free balls in opponent half pulled to goal!" or "OFF", 1.5, "🕳️")
+end)
+
+AimTab:AddSlider("Goal Vortex Pull Power", 10, 100, Config.GoalVortexPower, "", function(v)
+    Config.GoalVortexPower = v
+end)
+
+AimTab:AddSlider("Goal Vortex Pull Radius", 20, 120, Config.GoalVortexRadius, " studs", function(v)
+    Config.GoalVortexRadius = v
+end)
+
+AimTab:AddToggle("👻 Phantom Ghost Dribble (Anti-Tackle)", Config.PhantomGhostDribble, function(v)
+    Config.PhantomGhostDribble = v
+    Notify("Phantom Dribble", v and "ON: Automatically evades sliding tackles" or "OFF", 1.5, "👻")
+end)
+
 AimTab:AddSection("Target Acquisition")
 AimTab:AddToggle("Metavision Silent Goal Aim", Config.SilentAim, function(v)
     Config.SilentAim = v
@@ -3482,6 +3710,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
     if processed or UserInputService:GetFocusedTextBox() then return end
     if input.KeyCode == Config.InstantGoalKey then
         FireSuperShot()
+    elseif input.KeyCode == Config.KaiserImpactKey then
+        ExecuteKaiserImpact()
     elseif input.KeyCode == Config.FakeShotKey then
         ExecuteFakeShotFeint()
     elseif input.KeyCode == Config.AutoPassKey then
@@ -3500,7 +3730,7 @@ end)
 RunService.RenderStepped:Connect(function()
     pcall(function()
         local char = LocalPlayer.Character
-        if char and Config.HitboxExpander then
+        if char and Config.HitboxExpander and not Config.StealthMode then
             local headerHitbox = char:FindFirstChild("HeaderHitbox") or char:FindFirstChild("Hitbox")
             if headerHitbox and headerHitbox:IsA("BasePart") then
                 headerHitbox.Size = Vector3.new(Config.HitboxSize, Config.HitboxSize, Config.HitboxSize)
@@ -3536,7 +3766,11 @@ RunService.RenderStepped:Connect(function()
         local char = LocalPlayer.Character
         local hum = char and char:FindFirstChild("Humanoid")
         if hum then
-            if Config.SpeedBoost then hum.WalkSpeed = Config.WalkSpeed end
+            if Config.SpeedBoost then
+                hum.WalkSpeed = Config.WalkSpeed
+            elseif Config.StealthSpeed then
+                hum.WalkSpeed = Config.StealthSpeedValue or 22
+            end
             if Config.JumpPowerBoost then hum.JumpPower = Config.JumpPower end
         end
     end)
@@ -3559,7 +3793,7 @@ RunService.RenderStepped:Connect(function()
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
 
-        if Config.Fly then
+        if Config.Fly and not Config.StealthMode then
             if not flyBodyVel or flyBodyVel.Parent ~= hrp then
                 flyBodyVel = Instance.new("BodyVelocity")
                 flyBodyVel.MaxForce = Vector3.new(1e5, 1e5, 1e5)
@@ -3608,7 +3842,7 @@ RunService.Heartbeat:Connect(function()
         local hasBall = myChar:GetAttribute("HasBall") == true or (ball and ball.Parent == myChar)
         local now = tick()
 
-        -- 1. Hyper-Fast Instant 0ms Auto Tackle & Steal Lunge (Ultra-Speed)
+        -- 1. Hyper-Fast Instant Auto Tackle & Steal Lunge
         if Config.AutoTackle and not hasBall and (now - lastTackleTick) >= 0.05 then
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
@@ -3622,7 +3856,7 @@ RunService.Heartbeat:Connect(function()
                             or (ball and ball.Parent == enemyChar)
                             or (ball and (ball.Position - enemyHrp.Position).Magnitude <= 8.5)
                         
-                        if enemyHasBall and dist <= (Config.TackleDistance + 6) then
+                        if enemyHasBall and dist <= (Config.TackleDistance + (Config.StealthMode and 2 or 6)) then
                             lastTackleTick = now
                             
                             -- Non-blocking concurrent remote execution
@@ -3637,8 +3871,8 @@ RunService.Heartbeat:Connect(function()
                                 end
                             end)
                             
-                            -- Optional Physical Slide Lunge Acceleration to close distance (Only when enabled)
-                            if Config.AutoStealTeleport then
+                            -- Optional Physical Slide Lunge Acceleration to close distance (Only when enabled & not in stealth)
+                            if Config.AutoStealTeleport and not Config.StealthMode then
                                 pcall(function()
                                     local lungeDir = (enemyHrp.Position - myHrp.Position).Unit
                                     if myHrp:FindFirstChild("StealLungeBV") then myHrp.StealLungeBV:Destroy() end
@@ -3659,15 +3893,20 @@ RunService.Heartbeat:Connect(function()
             end
         end
 
-        if (Config.AutoDribble or Config.SkillChaining) and hasBall and (now - lastDribbleTick) >= 0.52 then
+        -- 2. Phantom Ghost Dribble & Skill Chaining
+        if (Config.PhantomGhostDribble or Config.AutoDribble or Config.SkillChaining) and hasBall and (now - lastDribbleTick) >= 0.42 then
             for _, plr in ipairs(Players:GetPlayers()) do
-                if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and IsEnemy(plr) then
                     local enemyChar = plr.Character
                     local enemyHrp = enemyChar.HumanoidRootPart
                     local dist = (enemyHrp.Position - myHrp.Position).Magnitude
                     
-                    if dist <= 14 and (enemyChar:GetAttribute("Sliding") == true or enemyChar:GetAttribute("Tackling") == true or (enemyHrp.AssemblyLinearVelocity.Magnitude > 28 and dist <= 10)) then
+                    if dist <= 14 and (enemyChar:GetAttribute("Sliding") == true or enemyChar:GetAttribute("Tackling") == true or (enemyHrp.AssemblyLinearVelocity.Magnitude > 24 and dist <= 10)) then
                         lastDribbleTick = now
+                        if Config.PhantomGhostDribble and not Config.StealthMode then
+                            local sideVector = myHrp.CFrame.RightVector * (math.random() > 0.5 and 1 or -1)
+                            myHrp.CFrame = myHrp.CFrame + (sideVector * 6.5)
+                        end
                         if Config.SkillChaining and Events and Events:FindFirstChild("RainbowFlick") then
                             Events.RainbowFlick:FireServer(myHrp.CFrame.LookVector + Vector3.new(0, 1, 0))
                         end
@@ -3677,6 +3916,18 @@ RunService.Heartbeat:Connect(function()
                         break
                     end
                 end
+            end
+        end
+
+        -- 3. Goal Vortex Gravitational Net Pull (OP Godmode)
+        if Config.GoalVortex and not hasBall and ball and ball:IsA("BasePart") and ball.Parent == Workspace then
+            local enemyGoal = GetEnemyGoal()
+            local distToGoal = (ball.Position - enemyGoal).Magnitude
+            if distToGoal <= (Config.GoalVortexRadius or 65) then
+                local pullDir = (enemyGoal - ball.Position).Unit
+                local vortexForce = (Config.GoalVortexPower or 45) * 0.05
+                local curVel = ball.AssemblyLinearVelocity
+                ball.AssemblyLinearVelocity = Vector3.new(curVel.X + (pullDir.X * vortexForce), curVel.Y, curVel.Z + (pullDir.Z * vortexForce))
             end
         end
 
@@ -3813,58 +4064,71 @@ RunService.Heartbeat:Connect(function()
         
         local now = tick()
         if (Config.AutoGKDive or Config.GodGK) and (isFastShotIncoming or (distToBall <= Config.AutoGKDistance and (isBallIncoming or opponentThreat or distToBall <= 22))) then
-            if (now - lastGKDiveTick) >= 0.42 then
-                local targetPoint = predictedHitPos or ballPos
-                local relVec = myHrp.CFrame:PointToObjectSpace(targetPoint)
-                local diveDir = "Forward"
-                
-                if relVec.X < -1.5 then
-                    diveDir = "Left"
-                elseif relVec.X > 1.5 then
-                    diveDir = "Right"
-                else
-                    diveDir = "Forward"
-                end
-                
+            local triggerInterval = Config.HumanReactionGK and 0.58 or 0.42
+            if (now - lastGKDiveTick) >= triggerInterval then
                 lastGKDiveTick = now
-                SessionStats.SavesMade = SessionStats.SavesMade + 1
+                
+                local function PerformDive()
+                    pcall(function()
+                        if not myHrp or not hum or hum.Health <= 0 then return end
+                        local targetPoint = predictedHitPos or ballPos
+                        local relVec = myHrp.CFrame:PointToObjectSpace(targetPoint)
+                        local diveDir = "Forward"
+                        
+                        if relVec.X < -1.5 then
+                            diveDir = "Left"
+                        elseif relVec.X > 1.5 then
+                            diveDir = "Right"
+                        else
+                            diveDir = "Forward"
+                        end
+                        
+                        SessionStats.SavesMade = SessionStats.SavesMade + 1
 
-                if Events and Events:FindFirstChild("GKDive") then
-                    Events.GKDive:FireServer(diveDir)
-                end
-                
-                local saveTarget = predictedHitPos or Vector3.new(standingX, math.clamp(ballPos.Y, 2.5, 7.5), math.clamp(ballPos.Z, -13.0, 13.0))
-                local diveDelta = (saveTarget - myHrp.Position)
-                local horizontalDelta = Vector3.new(diveDelta.X, 0, diveDelta.Z)
-                local diveDist = horizontalDelta.Magnitude
-                
-                if diveDist > 1.2 then
-                    local diveSpeed = math.clamp(diveDist * 4.5, 32, 60)
-                    local isHighShot = (targetPoint.Y >= 4.8) and Config.AntiChipSweeper
-                    
-                    if isHighShot then
-                        hum.Jump = true
-                    end
-                    
-                    if myHrp:FindFirstChild("GKDiveBV") then myHrp.GKDiveBV:Destroy() end
-                    local diveBV = Instance.new("BodyVelocity")
-                    diveBV.Name = "GKDiveBV"
-                    diveBV.MaxForce = Vector3.new(1e6, isHighShot and 1e6 or 0, 1e6)
-                    local yLift = isHighShot and math.clamp((targetPoint.Y - myHrp.Position.Y) * 6, 12, 28) or 0
-                    diveBV.Velocity = (horizontalDelta.Unit * diveSpeed) + Vector3.new(0, yLift, 0)
-                    diveBV.Parent = myHrp
-                    
-                    task.delay(0.32, function()
-                        if diveBV and diveBV.Parent then diveBV:Destroy() end
+                        if Events and Events:FindFirstChild("GKDive") then
+                            Events.GKDive:FireServer(diveDir)
+                        end
+                        
+                        local saveTarget = predictedHitPos or Vector3.new(standingX, math.clamp(ballPos.Y, 2.5, 7.5), math.clamp(ballPos.Z, -13.0, 13.0))
+                        local diveDelta = (saveTarget - myHrp.Position)
+                        local horizontalDelta = Vector3.new(diveDelta.X, 0, diveDelta.Z)
+                        local diveDist = horizontalDelta.Magnitude
+                        
+                        if diveDist > 1.2 and not Config.StealthMode then
+                            local diveSpeed = math.clamp(diveDist * 4.5, 32, 60)
+                            local isHighShot = (targetPoint.Y >= 4.8) and Config.AntiChipSweeper
+                            
+                            if isHighShot then
+                                hum.Jump = true
+                            end
+                            
+                            if myHrp:FindFirstChild("GKDiveBV") then myHrp.GKDiveBV:Destroy() end
+                            local diveBV = Instance.new("BodyVelocity")
+                            diveBV.Name = "GKDiveBV"
+                            diveBV.MaxForce = Vector3.new(1e6, isHighShot and 1e6 or 0, 1e6)
+                            local yLift = isHighShot and math.clamp((targetPoint.Y - myHrp.Position.Y) * 6, 12, 28) or 0
+                            diveBV.Velocity = (horizontalDelta.Unit * diveSpeed) + Vector3.new(0, yLift, 0)
+                            diveBV.Parent = myHrp
+                            
+                            task.delay(0.32, function()
+                                if diveBV and diveBV.Parent then diveBV:Destroy() end
+                            end)
+                        end
+                        
+                        for _, plr in ipairs(Players:GetPlayers()) do
+                            if plr ~= LocalPlayer and IsEnemy(plr) and plr.Character and plr.Character:GetAttribute("HasBall") == true then
+                                if Events and Events:FindFirstChild("StealBallSlide") then
+                                    Events.StealBallSlide:InvokeServer(plr.Character)
+                                end
+                            end
+                        end
                     end)
                 end
-                
-                for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer and IsEnemy(plr) and plr.Character and plr.Character:GetAttribute("HasBall") == true then
-                        if Events and Events:FindFirstChild("StealBallSlide") then
-                            Events.StealBallSlide:InvokeServer(plr.Character)
-                        end
-                    end
+
+                if Config.HumanReactionGK then
+                    task.delay(math.random(110, 190) / 1000, PerformDive)
+                else
+                    PerformDive()
                 end
             end
         end
