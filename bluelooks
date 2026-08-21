@@ -1402,9 +1402,10 @@ local defaultSize, defaultPos = GetResponsiveFrameSize()
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = defaultSize
-MainFrame.Position = defaultPos
-MainFrame.BackgroundColor3 = Color3.fromRGB(11, 15, 23)
+MainFrame.Size = UDim2.new(0, 0, 0, 0)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
+MainFrame.BackgroundTransparency = 1
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
 MainFrame.Visible = true
@@ -1421,42 +1422,66 @@ Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 end)
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 16)
+MainCorner.CornerRadius = UDim.new(0, 12)
 MainCorner.Parent = MainFrame
 
 local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Color3.fromRGB(255, 182, 205)
-MainStroke.Thickness = 1.8
-MainStroke.Transparency = 0.2
+MainStroke.Color = Color3.fromRGB(234, 234, 234)
+MainStroke.Thickness = 1.2
+MainStroke.Transparency = 1
 MainStroke.Parent = MainFrame
+
+local MainStrokeGradient = Instance.new("UIGradient")
+MainStrokeGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(234, 234, 234)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 130, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 165, 215))
+})
+MainStrokeGradient.Rotation = 45
+MainStrokeGradient.Parent = MainStroke
 
 local GlowLine = Instance.new("Frame")
 GlowLine.Size = UDim2.new(1, 0, 0, 2)
 GlowLine.Position = UDim2.new(0, 0, 0, 0)
-GlowLine.BackgroundColor3 = Color3.fromRGB(255, 182, 205)
+GlowLine.BackgroundColor3 = Color3.fromRGB(180, 130, 255)
 GlowLine.BorderSizePixel = 0
 GlowLine.Parent = MainFrame
 
 local GlowGradient = Instance.new("UIGradient")
 GlowGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(130, 215, 255)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 182, 205)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 245, 255))
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(234, 234, 234)),
+    ColorSequenceKeypoint.new(0.4, Color3.fromRGB(180, 130, 255)),
+    ColorSequenceKeypoint.new(0.8, Color3.fromRGB(255, 165, 215)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(234, 234, 234))
 })
 GlowGradient.Parent = GlowLine
+
+-- Opening Summon Animation
+task.spawn(function()
+    TweenService:Create(MainFrame, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = defaultSize,
+        Position = defaultPos,
+        BackgroundTransparency = 0.15
+    }):Play()
+    TweenService:Create(MainStroke, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Transparency = 0.5
+    }):Play()
+end)
 
 -- TopBar
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
-TopBar.Size = UDim2.new(1, 0, 0, 56)
-TopBar.BackgroundColor3 = Color3.fromRGB(15, 18, 28)
+TopBar.Size = UDim2.new(1, 0, 0, 52)
+TopBar.BackgroundColor3 = Color3.fromRGB(14, 14, 24)
+TopBar.BackgroundTransparency = 0.20
 TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
 
 local TopBarFix = Instance.new("Frame")
 TopBarFix.Size = UDim2.new(1, 0, 0, 14)
 TopBarFix.Position = UDim2.new(0, 0, 1, -14)
-TopBarFix.BackgroundColor3 = Color3.fromRGB(15, 18, 28)
+TopBarFix.BackgroundColor3 = Color3.fromRGB(14, 14, 24)
+TopBarFix.BackgroundTransparency = 0.20
 TopBarFix.BorderSizePixel = 0
 TopBarFix.Parent = TopBar
 
@@ -1488,9 +1513,10 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 local LogoContainer = Instance.new("Frame")
-LogoContainer.Size = UDim2.new(0, 36, 0, 36)
-LogoContainer.Position = UDim2.new(0, 18, 0.5, -18)
-LogoContainer.BackgroundColor3 = Color3.fromRGB(24, 30, 48)
+LogoContainer.Size = UDim2.new(0, 34, 0, 34)
+LogoContainer.Position = UDim2.new(0, 16, 0.5, -17)
+LogoContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 36)
+LogoContainer.BackgroundTransparency = 0.3
 LogoContainer.BorderSizePixel = 0
 LogoContainer.Parent = TopBar
 
@@ -1499,39 +1525,37 @@ LogoCorner.CornerRadius = UDim.new(1, 0)
 LogoCorner.Parent = LogoContainer
 
 local LogoStroke = Instance.new("UIStroke")
-LogoStroke.Color = Color3.fromRGB(255, 182, 205)
-LogoStroke.Thickness = 1.4
+LogoStroke.Color = Color3.fromRGB(180, 130, 255)
+LogoStroke.Thickness = 1.2
+LogoStroke.Transparency = 0.4
 LogoStroke.Parent = LogoContainer
-
-local LogoImg = Instance.new("ImageLabel")
-LogoImg.Size = UDim2.new(1, 0, 1, 0)
-LogoImg.BackgroundTransparency = 1
-LogoImg.Image = "rbxassetid://71437797590650"
-LogoImg.Parent = LogoContainer
-
-local LogoImgCorner = Instance.new("UICorner")
-LogoImgCorner.CornerRadius = UDim.new(1, 0)
-LogoImgCorner.Parent = LogoImg
 
 local LogoIcon = Instance.new("TextLabel")
 LogoIcon.Size = UDim2.new(1, 0, 1, 0)
 LogoIcon.BackgroundTransparency = 1
 LogoIcon.Text = "🕊️"
-LogoIcon.TextSize = 20
+LogoIcon.TextSize = 18
 LogoIcon.ZIndex = 5
 LogoIcon.Parent = LogoContainer
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 340, 1, 0)
-Title.Position = UDim2.new(0, 62, 0, 0)
+Title.Position = UDim2.new(0, 58, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "🌙 LUNAR <font color='#ff9ec6'><b>HUB</b></font> <font color='#78d5ff'><font size='11'>COLUMBINA v7.0 SUPREME</font></font>"
-Title.RichText = true
-Title.TextColor3 = Color3.fromRGB(255, 245, 255)
+Title.Text = "Columbina Lunar"
+Title.TextColor3 = Color3.fromRGB(234, 234, 234)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 16
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TopBar
+
+local TitleGradient = Instance.new("UIGradient")
+TitleGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(234, 234, 234)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 130, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 165, 215))
+})
+TitleGradient.Parent = Title
 
 local StatsBadge = Instance.new("Frame")
 StatsBadge.Size = UDim2.new(0, 220, 0, 32)
@@ -2095,13 +2119,13 @@ local function CreateTab(name, icon, subtitle)
         for _, t in ipairs(AllTabs) do
             t.Page.Visible = false
             t.Indicator.Visible = false
-            TweenService:Create(t.Button, TWEEN_SMOOTH, {BackgroundColor3 = Color3.fromRGB(17, 22, 33)}):Play()
-            TweenService:Create(t.Title, TWEEN_SMOOTH, {TextColor3 = Color3.fromRGB(160, 175, 200)}):Play()
+            TweenService:Create(t.Button, TWEEN_SMOOTH, {BackgroundColor3 = Color3.fromRGB(15, 15, 25)}):Play()
+            TweenService:Create(t.Title, TWEEN_SMOOTH, {TextColor3 = Color3.fromRGB(160, 160, 190)}):Play()
         end
         Page.Visible = true
         ActiveIndicator.Visible = true
-        TweenService:Create(TabButton, TWEEN_SMOOTH, {BackgroundColor3 = Color3.fromRGB(26, 34, 52)}):Play()
-        TweenService:Create(TabTitle, TWEEN_SMOOTH, {TextColor3 = Color3.fromRGB(255, 158, 198)}):Play()
+        TweenService:Create(TabButton, TWEEN_SMOOTH, {BackgroundColor3 = Color3.fromRGB(24, 22, 42)}):Play()
+        TweenService:Create(TabTitle, TWEEN_SMOOTH, {TextColor3 = Color3.fromRGB(234, 234, 234)}):Play()
         CurrentActiveTab = tabData
     end
 
@@ -2124,7 +2148,7 @@ local function CreateTab(name, icon, subtitle)
         SecLabel.Size = UDim2.new(1, 0, 1, 0)
         SecLabel.BackgroundTransparency = 1
         SecLabel.Text = string.upper(text)
-        SecLabel.TextColor3 = Color3.fromRGB(120, 213, 255)
+        SecLabel.TextColor3 = Color3.fromRGB(180, 130, 255)
         SecLabel.Font = Enum.Font.GothamBold
         SecLabel.TextSize = 11
         SecLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -2134,17 +2158,19 @@ local function CreateTab(name, icon, subtitle)
     function Controls:AddToggle(title, default, callback)
         local ToggleFrame = Instance.new("Frame")
         ToggleFrame.Size = UDim2.new(1, 0, 0, 44)
-        ToggleFrame.BackgroundColor3 = Color3.fromRGB(16, 21, 32)
+        ToggleFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 28)
+        ToggleFrame.BackgroundTransparency = 0.35
         ToggleFrame.BorderSizePixel = 0
         ToggleFrame.Parent = Page
 
         local TCorner = Instance.new("UICorner")
-        TCorner.CornerRadius = UDim.new(0, 9)
+        TCorner.CornerRadius = UDim.new(0, 8)
         TCorner.Parent = ToggleFrame
 
         local TStroke = Instance.new("UIStroke")
-        TStroke.Color = Color3.fromRGB(28, 36, 52)
+        TStroke.Color = Color3.fromRGB(200, 200, 225)
         TStroke.Thickness = 1
+        TStroke.Transparency = 0.8
         TStroke.Parent = ToggleFrame
 
         local TText = Instance.new("TextLabel")
@@ -2152,7 +2178,7 @@ local function CreateTab(name, icon, subtitle)
         TText.Position = UDim2.new(0, 14, 0, 0)
         TText.BackgroundTransparency = 1
         TText.Text = title
-        TText.TextColor3 = Color3.fromRGB(225, 235, 250)
+        TText.TextColor3 = Color3.fromRGB(245, 245, 255)
         TText.Font = Enum.Font.GothamMedium
         TText.TextSize = 13
         TText.TextXAlignment = Enum.TextXAlignment.Left
@@ -2161,7 +2187,7 @@ local function CreateTab(name, icon, subtitle)
         local SwitchPill = Instance.new("Frame")
         SwitchPill.Size = UDim2.new(0, 42, 0, 22)
         SwitchPill.Position = UDim2.new(1, -54, 0.5, -11)
-        SwitchPill.BackgroundColor3 = default and Color3.fromRGB(255, 158, 198) or Color3.fromRGB(35, 45, 65)
+        SwitchPill.BackgroundColor3 = default and Color3.fromRGB(180, 130, 255) or Color3.fromRGB(28, 28, 44)
         SwitchPill.BorderSizePixel = 0
         SwitchPill.Parent = ToggleFrame
 
@@ -2172,7 +2198,7 @@ local function CreateTab(name, icon, subtitle)
         local Thumb = Instance.new("Frame")
         Thumb.Size = UDim2.new(0, 16, 0, 16)
         Thumb.Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
-        Thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        Thumb.BackgroundColor3 = Color3.fromRGB(234, 234, 234)
         Thumb.BorderSizePixel = 0
         Thumb.Parent = SwitchPill
 
@@ -2188,12 +2214,28 @@ local function CreateTab(name, icon, subtitle)
         ClickArea.Active = true
         ClickArea.Parent = ToggleFrame
 
+        ClickArea.MouseEnter:Connect(function()
+            TweenService:Create(ToggleFrame, TWEEN_SMOOTH, {
+                BackgroundColor3 = Color3.fromRGB(24, 22, 42),
+                BackgroundTransparency = 0.2
+            }):Play()
+            TweenService:Create(TStroke, TWEEN_SMOOTH, {Transparency = 0.4}):Play()
+        end)
+
+        ClickArea.MouseLeave:Connect(function()
+            TweenService:Create(ToggleFrame, TWEEN_SMOOTH, {
+                BackgroundColor3 = Color3.fromRGB(16, 16, 28),
+                BackgroundTransparency = 0.35
+            }):Play()
+            TweenService:Create(TStroke, TWEEN_SMOOTH, {Transparency = 0.8}):Play()
+        end)
+
         local state = default
         ClickArea.MouseButton1Click:Connect(function()
             state = not state
             PlaySound(nil, state and 1.2 or 0.95)
             TweenService:Create(SwitchPill, TWEEN_SMOOTH, {
-                BackgroundColor3 = state and Color3.fromRGB(255, 158, 198) or Color3.fromRGB(35, 45, 65)
+                BackgroundColor3 = state and Color3.fromRGB(180, 130, 255) or Color3.fromRGB(28, 28, 44)
             }):Play()
             TweenService:Create(Thumb, TWEEN_SMOOTH, {
                 Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
@@ -2207,17 +2249,19 @@ local function CreateTab(name, icon, subtitle)
         suffix = suffix or ""
         local SliderFrame = Instance.new("Frame")
         SliderFrame.Size = UDim2.new(1, 0, 0, 56)
-        SliderFrame.BackgroundColor3 = Color3.fromRGB(16, 21, 32)
+        SliderFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 28)
+        SliderFrame.BackgroundTransparency = 0.35
         SliderFrame.BorderSizePixel = 0
         SliderFrame.Parent = Page
 
         local SCorner = Instance.new("UICorner")
-        SCorner.CornerRadius = UDim.new(0, 9)
+        SCorner.CornerRadius = UDim.new(0, 8)
         SCorner.Parent = SliderFrame
 
         local SStroke = Instance.new("UIStroke")
-        SStroke.Color = Color3.fromRGB(28, 36, 52)
+        SStroke.Color = Color3.fromRGB(200, 200, 225)
         SStroke.Thickness = 1
+        SStroke.Transparency = 0.8
         SStroke.Parent = SliderFrame
 
         local SText = Instance.new("TextLabel")
@@ -2225,7 +2269,7 @@ local function CreateTab(name, icon, subtitle)
         SText.Position = UDim2.new(0, 14, 0, 6)
         SText.BackgroundTransparency = 1
         SText.Text = title
-        SText.TextColor3 = Color3.fromRGB(225, 235, 250)
+        SText.TextColor3 = Color3.fromRGB(245, 245, 255)
         SText.Font = Enum.Font.GothamMedium
         SText.TextSize = 13
         SText.TextXAlignment = Enum.TextXAlignment.Left
@@ -2236,16 +2280,16 @@ local function CreateTab(name, icon, subtitle)
         SVal.Position = UDim2.new(1, -94, 0, 6)
         SVal.BackgroundTransparency = 1
         SVal.Text = tostring(default) .. suffix
-        SVal.TextColor3 = Color3.fromRGB(0, 220, 255)
+        SVal.TextColor3 = Color3.fromRGB(180, 130, 255)
         SVal.Font = Enum.Font.GothamBold
         SVal.TextSize = 12
         SVal.TextXAlignment = Enum.TextXAlignment.Right
         SVal.Parent = SliderFrame
 
         local Track = Instance.new("Frame")
-        Track.Size = UDim2.new(1, -28, 0, 6)
+        Track.Size = UDim2.new(1, -28, 0, 5)
         Track.Position = UDim2.new(0, 14, 0, 36)
-        Track.BackgroundColor3 = Color3.fromRGB(26, 34, 50)
+        Track.BackgroundColor3 = Color3.fromRGB(22, 22, 36)
         Track.BorderSizePixel = 0
         Track.Parent = SliderFrame
 
@@ -2256,13 +2300,31 @@ local function CreateTab(name, icon, subtitle)
         local Fill = Instance.new("Frame")
         local initPercent = math.clamp((default - min) / (max - min), 0, 1)
         Fill.Size = UDim2.new(initPercent, 0, 1, 0)
-        Fill.BackgroundColor3 = Color3.fromRGB(0, 210, 255)
+        Fill.BackgroundColor3 = Color3.fromRGB(180, 130, 255)
         Fill.BorderSizePixel = 0
         Fill.Parent = Track
 
         local FillCorner = Instance.new("UICorner")
         FillCorner.CornerRadius = UDim.new(1, 0)
         FillCorner.Parent = Fill
+
+        local FillGradient = Instance.new("UIGradient")
+        FillGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 130, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 165, 215))
+        })
+        FillGradient.Parent = Fill
+
+        local Thumb = Instance.new("Frame")
+        Thumb.Size = UDim2.new(0, 12, 0, 12)
+        Thumb.Position = UDim2.new(1, -6, 0.5, -6)
+        Thumb.BackgroundColor3 = Color3.fromRGB(234, 234, 234)
+        Thumb.BorderSizePixel = 0
+        Thumb.Parent = Fill
+
+        local ThumbCorner = Instance.new("UICorner")
+        ThumbCorner.CornerRadius = UDim.new(1, 0)
+        ThumbCorner.Parent = Thumb
 
         local SliderBtn = Instance.new("TextButton")
         SliderBtn.Size = UDim2.new(1, 0, 0, 20)
@@ -2300,6 +2362,22 @@ local function CreateTab(name, icon, subtitle)
             if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
                 UpdateSlider(input)
             end
+        end)
+
+        SliderFrame.MouseEnter:Connect(function()
+            TweenService:Create(SliderFrame, TWEEN_SMOOTH, {
+                BackgroundColor3 = Color3.fromRGB(24, 22, 42),
+                BackgroundTransparency = 0.2
+            }):Play()
+            TweenService:Create(SStroke, TWEEN_SMOOTH, {Transparency = 0.4}):Play()
+        end)
+
+        SliderFrame.MouseLeave:Connect(function()
+            TweenService:Create(SliderFrame, TWEEN_SMOOTH, {
+                BackgroundColor3 = Color3.fromRGB(16, 16, 28),
+                BackgroundTransparency = 0.35
+            }):Play()
+            TweenService:Create(SStroke, TWEEN_SMOOTH, {Transparency = 0.8}):Play()
         end)
     end
 
@@ -2360,17 +2438,19 @@ local function CreateTab(name, icon, subtitle)
     function Controls:AddButton(title, btnText, callback)
         local BtnFrame = Instance.new("Frame")
         BtnFrame.Size = UDim2.new(1, 0, 0, 44)
-        BtnFrame.BackgroundColor3 = Color3.fromRGB(16, 21, 32)
+        BtnFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 28)
+        BtnFrame.BackgroundTransparency = 0.35
         BtnFrame.BorderSizePixel = 0
         BtnFrame.Parent = Page
 
         local BCorner = Instance.new("UICorner")
-        BCorner.CornerRadius = UDim.new(0, 9)
+        BCorner.CornerRadius = UDim.new(0, 8)
         BCorner.Parent = BtnFrame
 
         local BStroke = Instance.new("UIStroke")
-        BStroke.Color = Color3.fromRGB(28, 36, 52)
+        BStroke.Color = Color3.fromRGB(200, 200, 225)
         BStroke.Thickness = 1
+        BStroke.Transparency = 0.8
         BStroke.Parent = BtnFrame
 
         local BText = Instance.new("TextLabel")
@@ -2378,7 +2458,7 @@ local function CreateTab(name, icon, subtitle)
         BText.Position = UDim2.new(0, 14, 0, 0)
         BText.BackgroundTransparency = 1
         BText.Text = title
-        BText.TextColor3 = Color3.fromRGB(225, 235, 250)
+        BText.TextColor3 = Color3.fromRGB(245, 245, 255)
         BText.Font = Enum.Font.GothamMedium
         BText.TextSize = 13
         BText.TextXAlignment = Enum.TextXAlignment.Left
@@ -2387,9 +2467,9 @@ local function CreateTab(name, icon, subtitle)
         local ActionBtn = Instance.new("TextButton")
         ActionBtn.Size = UDim2.new(0, 120, 0, 28)
         ActionBtn.Position = UDim2.new(1, -130, 0.5, -14)
-        ActionBtn.BackgroundColor3 = Color3.fromRGB(0, 190, 235)
+        ActionBtn.BackgroundColor3 = Color3.fromRGB(24, 22, 42)
         ActionBtn.Text = btnText or "Execute"
-        ActionBtn.TextColor3 = Color3.fromRGB(10, 15, 24)
+        ActionBtn.TextColor3 = Color3.fromRGB(234, 234, 234)
         ActionBtn.Font = Enum.Font.GothamBold
         ActionBtn.TextSize = 12
         ActionBtn.ZIndex = 10
@@ -2400,12 +2480,34 @@ local function CreateTab(name, icon, subtitle)
         ActCorner.CornerRadius = UDim.new(0, 6)
         ActCorner.Parent = ActionBtn
 
+        local ActStroke = Instance.new("UIStroke")
+        ActStroke.Color = Color3.fromRGB(180, 130, 255)
+        ActStroke.Thickness = 1
+        ActStroke.Transparency = 0.6
+        ActStroke.Parent = ActionBtn
+
+        ActionBtn.MouseEnter:Connect(function()
+            TweenService:Create(ActionBtn, TWEEN_FAST, {
+                BackgroundColor3 = Color3.fromRGB(35, 30, 58),
+                TextColor3 = Color3.fromRGB(255, 165, 215)
+            }):Play()
+            TweenService:Create(ActStroke, TWEEN_FAST, {Transparency = 0.2}):Play()
+        end)
+
+        ActionBtn.MouseLeave:Connect(function()
+            TweenService:Create(ActionBtn, TWEEN_FAST, {
+                BackgroundColor3 = Color3.fromRGB(24, 22, 42),
+                TextColor3 = Color3.fromRGB(234, 234, 234)
+            }):Play()
+            TweenService:Create(ActStroke, TWEEN_FAST, {Transparency = 0.6}):Play()
+        end)
+
         ActionBtn.MouseButton1Click:Connect(function()
-            PlaySound(nil, 1.2)
+            PlaySound(nil, 1.25)
             pcall(callback)
-            TweenService:Create(ActionBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(0, 255, 255)}):Play()
-            task.delay(0.15, function()
-                TweenService:Create(ActionBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 190, 235)}):Play()
+            TweenService:Create(ActionBtn, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(180, 130, 255)}):Play()
+            task.delay(0.12, function()
+                TweenService:Create(ActionBtn, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(24, 22, 42)}):Play()
             end)
         end)
     end
